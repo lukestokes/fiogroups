@@ -1,0 +1,8 @@
+{
+  "name": "lukestokes/fiogroups",
+  "require": {
+    "guzzlehttp/guzzle": "^6.3",
+    "composer/installers": "^1",
+    "rakibtg/sleekdb": "^2.5"
+  }
+}
