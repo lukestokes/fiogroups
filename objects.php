@@ -5,6 +5,15 @@ date_default_timezone_set('America/Puerto_Rico');
 function br() { return (PHP_SAPI === 'cli' ? "\n" : "<br />"); }
 
 class Factory {
+    public $dataDir;
+
+    function __construct($dataDir = null) {
+        $this->dataDir = __DIR__ . "/data";
+        if ($dataDir) {
+            $this->dataDir = $dataDir;
+        }
+    }
+
     function new($object_type) {
         return new $object_type($object_type, $this);
     }
@@ -18,7 +27,7 @@ class BaseObject {
     public $factory;
 
     function __construct($object_type, $factory) {
-        $this->dataDir = __DIR__ . "/data";
+        $this->dataDir = $factory->dataDir;
         $this->dataStore = new \SleekDB\Store($object_type, $this->dataDir);
         $this->factory = $factory;
     }
@@ -52,15 +61,16 @@ class BaseObject {
     }
 
     function read($criteria = null) {
+        $object_data = null;
         if ($this->_id) {
             $object_data = $this->dataStore->findById($this->_id);
         } elseif($criteria) {
             $object_data = $this->dataStore->findOneBy($criteria);
         }
-        if ($object_data) {
+        if (!is_null($object_data)) {
             $this->loadData($object_data);
         }
-        return ($object_data);
+        return !is_null($object_data);
     }
 
     function print() {
@@ -145,10 +155,21 @@ class Group extends BaseObject {
         if ($found) {
             throw new Exception($account . " is already a pending member for " . $this->domain . ".", 1);
         }
+        $criteria = [["domain","=",$this->domain],["member_name_requested","=",$member_name_requested]];
+        $found = $PendingMember->read($criteria);
+        if ($found) {
+            throw new Exception($member_name_requested . "@" . $this->domain . " has already been requested by a pending member of " . $this->domain . ".", 1);
+        }
         $Member = $this->factory->new("Member");
+        $criteria = [["domain","=",$this->domain],["account","=",$account]];
         $found = $Member->read($criteria);
         if ($found) {
             throw new Exception($account . " is already a member of " . $this->domain . ".", 1);
+        }
+        $criteria = [["domain","=",$this->domain],["member_name","=",$member_name_requested]];
+        $found = $Member->read($criteria);
+        if ($found) {
+            throw new Exception($member_name_requested . "@" . $this->domain . " has already been claimed by an existing member of " . $this->domain . ".", 1);
         }
         $PendingMember->member_name_requested = $member_name_requested;
         $PendingMember->domain = $this->domain;
@@ -166,16 +187,6 @@ class Group extends BaseObject {
         $found = $PendingMember->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a pending member for " . $this->domain . ".", 1);
-        }
-        $Member = $this->factory->new("Member");
-        $found = $Member->read($criteria);
-        if ($found) {
-            throw new Exception($account . " is already a member of " . $this->domain . ".", 1);
-        }
-        $criteria = [["domain","=",$this->domain],["member_name","=",$PendingMember->member_name_requested]];
-        $found = $Member->read($criteria);
-        if ($found) {
-            throw new Exception($PendingMember->member_name_requested . " has already been claimed by an existing member of " . $this->domain . ".", 1);
         }
         // TODO: check on chain to ensure membership_payment_transaction_id is valid
         // TODO: double check member_name_requested hasn't been claimed already.
@@ -278,6 +289,11 @@ class Group extends BaseObject {
         // note: this can throw exception
         $Election->vote($voter_account, $candidate_account, $rank, $vote_weight);
     }
+
+    // TODO: 
+    function removeVote($voter_account, $candidate_account) {
+    }
+
 }
 
 class PendingMember extends BaseObject {
@@ -413,13 +429,12 @@ class Election extends BaseObject {
             throw new Exception($voter_account . " already voted for " . $candidate_account . ".", 1);
         }
         $result = $voteQueryBuilder
-            ->select(["number_of_votes"])
             ->where([["domain","=",$this->domain],["epoch","=",$this->epoch],["voter_account","=",$voter_account]])
             ->groupBy(["domain","epoch","voter_account"], "number_of_votes")
             ->getQuery()
             ->fetch();
-        if ($result['number_of_votes'] >= $this->votes_per_member) {
-            throw new Exception($voter_account . " already voted " . $result['number_of_votes'] . " times.", 1);
+        if (isset($result[0]['number_of_votes']) && $result[0]['number_of_votes'] >= $this->votes_per_member) {
+            throw new Exception($voter_account . " already voted " . $result[0]['number_of_votes'] . " times.", 1);
         }
         $Vote->domain = $this->domain;
         $Vote->epoch = $this->epoch;
