@@ -137,6 +137,115 @@ final class ElectionTest extends TestCase
         $this->group->vote($this->account, $this->account."5", 2, 10);
     }
 
-    // TODO: recordVoteResults
+    public function testCanNotRecordVotesBeforeElectionVotingIsComplete(): void
+    {
+        $Election = $this->group->getCurrentElection();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("This election is not over. Please wait until after " . $Election->vote_time);
+        $this->group->recordVoteResults();
+    }
+
+    public function testCanNotRemoveVoteThatHasNotBeenCast(): void
+    {
+        $Election = $this->group->getCurrentElection();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage(" has not voted for ");
+        $this->group->removeVote($this->account."4", $this->account."4");
+    }
+
+    public function testCanGetAdminCandidates(): void
+    {
+        $Election = $this->group->getCurrentElection();
+        $admin_candidates = $Election->getAdminCandidates();
+        $this->assertCount(5,$admin_candidates);
+    }
+
+    public function testCanRecordVotes(): void
+    {
+        $Member = $this->factory->new("Member");
+        $criteria = ["domain","=",$this->domain];
+        $members = $Member->readAll($criteria);
+        $this->assertCount(7,$members);
+        $criteria = [["domain","=",$this->domain],["is_admin","=",true]];
+        $admins = $Member->readAll($criteria);
+        $this->assertCount(0,$admins);
+
+        $VoteResult = $this->factory->new("VoteResult");
+        $criteria = [["domain","=",$this->domain],["epoch","=",1]];
+        $voteresults = $VoteResult->readAll($criteria);
+        $this->assertCount(0,$voteresults);
+
+        $Vote = $this->factory->new("Vote");
+        $criteria = [["domain","=",$this->domain],["epoch","=",1]];
+        $votes = $Vote->readAll($criteria);
+        $this->assertCount(5,$votes);
+
+        $this->group->vote($this->account."1", $this->account."1", 2, 100);
+        $this->group->vote($this->account."1", $this->account."2", 3, 100);
+        $this->group->vote($this->account."1", $this->account."3", 4, 100);
+        $this->group->vote($this->account."1", $this->account."4", 5, 10);
+        $this->group->vote($this->account."1", $this->account."5", 5, 10);
+
+        $this->group->vote($this->account."2", $this->account."1", 2, 100);
+        $this->group->vote($this->account."2", $this->account."2", 3, 100);
+
+        $this->group->vote($this->account."3", $this->account."1", 2, 1000);
+
+        $this->group->vote($this->account."4", $this->account."2", 2, 100);
+
+        $criteria = [["domain","=",$this->domain],["epoch","=",1]];
+        $votes = $Vote->readAll($criteria);
+        $this->assertCount(14,$votes);
+
+        $Election = $this->group->getCurrentElection();
+        $Election->vote_time = time() - 10000;
+        $Election->save();
+
+        $admin_candidates = $Election->getAdminCandidates();
+        $this->assertCount(5,$admin_candidates);
+
+        $this->group->recordVoteResults();
+
+        $admin_candidates = $Election->getAdminCandidates();
+        $this->assertCount(0,$admin_candidates);
+
+        $criteria = [["domain","=",$this->domain],["epoch","=",1]];
+        $voteresults = $VoteResult->readAll($criteria);
+        $this->assertCount(5,$voteresults);
+
+        $criteria = [["domain","=",$this->domain],["is_admin","=",true]];
+        $admins = $Member->readAll($criteria);
+        $this->assertCount(3,$admins);
+
+        $this->assertEquals($this->account."1",$voteresults[0]->candidate_account);
+        $this->assertEquals(1,$voteresults[0]->rank);
+        $this->assertEquals(1210,$voteresults[0]->votes);
+
+        $this->assertEquals($this->account."2",$voteresults[1]->candidate_account);
+        $this->assertEquals(2,$voteresults[1]->rank);
+        $this->assertEquals(310,$voteresults[1]->votes);
+
+        $this->assertEquals($this->account."3",$voteresults[2]->candidate_account);
+        $this->assertEquals(3,$voteresults[2]->rank);
+        $this->assertEquals(110,$voteresults[2]->votes);
+    }
+
+    public function testCanNotVoteAfterElectionIsComplete(): void
+    {
+        $Election = $this->group->getCurrentElection();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_time . ".");
+        $this->group->vote($this->account."5", $this->account."5", 2, 100);
+    }
+
+    public function testCanNotRemoveVoteAfterElectionIsComplete(): void
+    {
+        $Election = $this->group->getCurrentElection();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_time . ".");
+        $this->group->removeVote($this->account."1", $this->account."1");
+    }
+
+
 
 }

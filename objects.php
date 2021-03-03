@@ -73,6 +73,17 @@ class BaseObject {
         return !is_null($object_data);
     }
 
+    function readAll($criteria) {
+        $objects = array();
+        $objects_data = $this->dataStore->findBy($criteria);
+        foreach ($objects_data as $object_data) {
+            $Object = $this->factory->new(get_class($this));
+            $Object->loadData($object_data);
+            $objects[] = $Object;
+        }
+        return $objects;
+    }
+
     function print() {
         $object_data = get_object_vars($this);
         unset($object_data["dataDir"]);
@@ -129,6 +140,13 @@ class Group extends BaseObject {
         $Group->date_created = time();
         $Group->save();
         return $Group;
+    }
+
+    function getMembers() {
+        $Member = $this->factory->new("Member");
+        $criteria = ["domain","=",$this->domain];
+        $member_data = $Member->dataStore->findBy($criteria);
+
     }
 
     function getApplicatonFee($client) {
@@ -280,18 +298,31 @@ class Group extends BaseObject {
         return $Election;
     }
 
-    function vote($voter_account, $candidate_account, $rank, $vote_weight) {
+    function getCurrentElection() {
         $Election = $this->factory->new("Election");
-        $found = $Election->read([["domain","=",$this->domain],["epoch","=",$this->epoch],["is_complete","=",false]]);
+        $found = $Election->read([["domain","=",$this->domain],["epoch","=",$this->epoch]]);
         if (!$found) {
             throw new Exception("An election with epoch " . $this->epoch . " for " . $this->domain . " can't be found.", 1);
         }
+        return $Election;
+    }
+
+    function vote($voter_account, $candidate_account, $rank, $vote_weight) {
+        $Election = $this->getCurrentElection();
         // note: this can throw exception
         $Election->vote($voter_account, $candidate_account, $rank, $vote_weight);
     }
 
-    // TODO: 
     function removeVote($voter_account, $candidate_account) {
+        $Election = $this->getCurrentElection();
+        // note: this can throw exception
+        $Election->removeVote($voter_account, $candidate_account);
+    }
+
+    function recordVoteResults() {
+        $Election = $this->getCurrentElection();
+        // note: this can throw exception
+        $Election->recordVoteResults();
     }
 
 }
@@ -446,92 +477,95 @@ class Election extends BaseObject {
         $Vote->save();
     }
 
+    function removeVote($voter_account, $candidate_account) {
+        $Vote = $this->factory->new("Vote");
+        if (time() > $this->vote_time) {
+            throw new Exception("Voting for epoch " . $this->epoch . " is already closed. Now: " . time() . ", deadline: " . $this->vote_time . ".", 1);
+        }
+        // can't vote for the same person twice
+        $already_voted = $Vote->read([
+            ["domain","=",$this->domain],
+            ["epoch","=",$this->epoch],
+            ["voter_account","=",$voter_account],
+            ["candidate_account","=",$candidate_account],
+        ]);
+        if (!$already_voted) {
+            throw new Exception($voter_account . " has not voted for " . $candidate_account . ".", 1);
+        }
+        $Vote->delete();
+    }
+
+    function getAdminCandidates() {
+        $AdminCandidate = $this->factory->new("AdminCandidate");
+        $criteria = ["domain","=",$this->domain];
+        $admin_candidates = $AdminCandidate->readAll($criteria);
+        return $admin_candidates;
+    }
+
     function recordVoteResults() {
         // TODO: Implemented ranked choice voting
         // https://github.com/fidian/rcv/blob/master/rcv.php
-        $error_string = "";
-        if (time() < $this->vote_time) {
-            $error_string = "This election is not over. Please wait until after " . $this->vote_time;
+        if (time() <= $this->vote_time) {
+            throw new Exception("This election is not over. Please wait until after " . $this->vote_time, 1);
         }
-        if ($error_string == "") {
-            $AdminCandidate = $this->factory->new("AdminCandidate");
-            $admin_candidates = array();
-            $criteria = ["domain","=",$this->domain];
-            $admin_candidates_data = $AdminCandidate->dataStore->findBy($criteria);
-            foreach ($admin_candidates_data as $admin_candidate_data) {
-                $AdminCandidate = $this->factory->new("AdminCandidate");
-                $AdminCandidate->loadData($admin_candidate_data);
-                $admin_candidates[] = $AdminCandidate;
-            }
-            $Vote = $this->factory->new("Vote");
-            $votes = array();
-            $criteria = [["domain","=",$this->domain],["epoch","=",$this->epoch]];
-            $votes_data = $Vote->dataStore->findBy($criteria);
-            foreach ($votes_data as $vote_data) {
-                $Vote = $this->factory->new("Vote");
-                $Vote->loadData($vote_data);
-                $votes[] = $Vote;
-            }
-            $vote_results = array();
-            foreach ($admin_candidates as $AdminCandidate) {
-                $VoteResult = $this->factory->new("VoteResult");
-                $VoteResult->domain = $this->domain;
-                $VoteResult->epoch = $this->epoch;
-                $VoteResult->candidate_account = $AdminCandidate->account;
-                $VoteResult->rank = 0; // update this later
-                $VoteResult->votes = 0; // update this later
-                foreach ($votes as $Vote) {
-                    if ($Vote->candidate_account == $AdminCandidate->account) {
-                        $VoteResult->votes += $Vote->vote_weight;
-                    }
-                }
-                $vote_results[] = $VoteResult;
-            }
-
-            usort($vote_results, function($a, $b) {
-                return ($a->votes - $b->votes);
-            });
-
-            // finish up
-            $rank = 1;
-            foreach ($vote_results as $VoteResult) {
-                $VoteResult->rank = $rank;
-                $VoteResult->save();
-                $rank++;
-            }
-            $vote_results = array_slice($vote_results, 0, $this->number_of_admins);
-
-            $Member = $this->factory->new("Member");
-            $members = array();
-            $criteria = ["domain","=",$this->domain];
-            $members_data = $Member->dataStore->findBy($criteria);
-            foreach ($members_data as $member_data) {
-                $Member = $this->factory->new("Member");
-                $Member->loadData($member_data);
-                $Member->is_admin = false;
-                $Member->save();
-                $members[] = $Member;
-            }
-            foreach ($vote_results as $VoteResult) {
-                foreach ($members as $Member) {
-                    if ($Member->account == $VoteResult->candidate_account) {
-                        $Member->is_admin = true;
-                        $Member->save();
-                    }
+        $admin_candidates = $this->getAdminCandidates();
+        $Vote = $this->factory->new("Vote");
+        $votes = array();
+        $criteria = [["domain","=",$this->domain],["epoch","=",$this->epoch]];
+        $votes = $Vote->readAll($criteria);
+        $vote_results = array();
+        foreach ($admin_candidates as $AdminCandidate) {
+            $VoteResult = $this->factory->new("VoteResult");
+            $VoteResult->domain = $this->domain;
+            $VoteResult->epoch = $this->epoch;
+            $VoteResult->candidate_account = $AdminCandidate->account;
+            $VoteResult->rank = 0; // update this later
+            $VoteResult->votes = 0; // update this later
+            foreach ($votes as $Vote) {
+                if ($Vote->candidate_account == $AdminCandidate->account) {
+                    $VoteResult->votes += $Vote->vote_weight;
                 }
             }
-
-            foreach ($admin_candidates as $AdminCandidate) {
-                $AdminCandidate->delete();
-            }
-
-            // TODO: queue up a multisig transaction to adjust the permissions of the group account based on the election results
-
-            $this->is_complete = true;
-            $this->date_certified = time();
-            $this->save();
-
+            $vote_results[] = $VoteResult;
         }
-        return $error_string;
+
+        usort($vote_results, function($a, $b) {
+            return ($b->votes - $a->votes);
+        });
+
+        // finish up
+        $rank = 1;
+        foreach ($vote_results as $VoteResult) {
+            $VoteResult->rank = $rank;
+            $VoteResult->save();
+            $rank++;
+        }
+        $vote_results = array_slice($vote_results, 0, $this->number_of_admins);
+
+        $Member = $this->factory->new("Member");
+        $criteria = ["domain","=",$this->domain];
+        $members = $Member->readAll($criteria);
+        foreach ($members as $Member) {
+            $Member->is_admin = false;
+            $Member->save();
+        }
+        foreach ($vote_results as $VoteResult) {
+            foreach ($members as $Member) {
+                if ($Member->account == $VoteResult->candidate_account) {
+                    $Member->is_admin = true;
+                    $Member->save();
+                }
+            }
+        }
+
+        foreach ($admin_candidates as $AdminCandidate) {
+            $AdminCandidate->delete();
+        }
+
+        // TODO: queue up a multisig transaction to adjust the permissions of the group account based on the election results
+
+        $this->is_complete = true;
+        $this->date_certified = time();
+        $this->save();
     }
 }
