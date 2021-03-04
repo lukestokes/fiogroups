@@ -53,11 +53,10 @@ final class GroupTest extends TestCase
     public function testCanListGroups(): void
     {
         $Group = $this->factory->new("Group");
-        $groups_data = $Group->dataStore->findAll();
-        $this->assertCount(2,$groups_data);
-        foreach ($groups_data as $group_data) {
-          $Group = $this->factory->new("Group");
-          $Group->loadData($group_data);
+        $criteria = ["domain","!=",""];
+        $groups = $Group->readAll($criteria);
+        $this->assertCount(2,$groups);
+        foreach ($groups as $Group) {
           if ($Group->_id == 1) {
               $this->assertEquals("testing",$Group->domain);
           }
@@ -65,6 +64,55 @@ final class GroupTest extends TestCase
               $this->assertEquals("testing1",$Group->domain);
           }
         }
+    }
+
+    public function testCanGetMembers(): void
+    {
+        $Group = $this->factory->new("Group");
+        $Group->_id = 1;
+        $Group->read();
+
+        $Member = $this->factory->new("Member");
+        $Member->member_name = "test";
+        $Member->domain = "testing";
+        $Member->account = "wntoh3fogzcj";
+        $Member->bio = "some info";
+        $Member->date_added = 1614808323;
+        $Member->last_verified_date = 1614808323;
+        $Member->is_admin = false;
+        $Member->is_active = true;
+        $Member->save();
+
+        $Member->_id = null;
+        $Member->member_name = "test1";
+        $Member->account = "wntoh3fogzcj1";
+        $Member->save();
+
+        $Member->_id = null;
+        $Member->member_name = "test2";
+        $Member->account = "wntoh3fogzcj2";
+        $Member->save();
+
+        $members = $Group->getMembers();
+        $this->assertCount(3,$members);
+        $this->assertEquals("test1",$members[1]->member_name);
+    }
+
+    public function testCanGetAdmins(): void
+    {
+        $Group = $this->factory->new("Group");
+        $Group->_id = 1;
+        $Group->read();
+
+        $Member = $this->factory->new("Member");
+        $Member->_id = 1;
+        $Member->read();
+        $Member->is_admin = true;
+        $Member->save();
+
+        $admins = $Group->getAdmins();
+        $this->assertCount(1,$admins);
+        $this->assertEquals("test",$admins[0]->member_name);
     }
 
 

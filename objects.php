@@ -144,9 +144,16 @@ class Group extends BaseObject {
 
     function getMembers() {
         $Member = $this->factory->new("Member");
-        $criteria = ["domain","=",$this->domain];
-        $member_data = $Member->dataStore->findBy($criteria);
+        $criteria = [["domain","=",$this->domain], ["is_active", "=", true]];
+        $members = $Member->readAll($criteria);
+        return $members;
+    }
 
+    function getAdmins() {
+        $Member = $this->factory->new("Member");
+        $criteria = [["domain","=",$this->domain], ["is_active", "=", true], ["is_admin","=",true]];
+        $admins = $Member->readAll($criteria);
+        return $admins;
     }
 
     function getApplicatonFee($client) {
@@ -217,6 +224,7 @@ class Group extends BaseObject {
         $Member->last_verified_date = time();
         // TODO: set to true if there are no other group members?
         $Member->is_admin = false;
+        $Member->is_active = true;
         $Member->save();
         $PendingMember->delete();
         return $Member;
@@ -249,6 +257,7 @@ class Group extends BaseObject {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
         $Member->last_verified_date = time();
+        $Member->is_active = true;
         $Member->save();
     }
     function registerCandidate($account) {
@@ -362,6 +371,10 @@ class Member extends BaseObject {
      * Set to true for groups creator or if elected as an admin of the group)
      */
     public $is_admin;
+    /**
+     * NEW
+     */
+    public $is_active;
 }
 
 class AdminCandidate extends BaseObject {
