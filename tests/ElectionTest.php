@@ -81,8 +81,8 @@ final class ElectionTest extends TestCase
         $Election = $this->factory->new("Election");
         $election_data = $Election->dataStore->findAll();
         $this->assertCount(0,$election_data);
-        $vote_time = time() + 100000;
-        $Election = $this->group->createElection(3, 2, 5, $vote_time);
+        $vote_date = time() + 100000;
+        $Election = $this->group->createElection(3, 2, 5, $vote_date);
         $this->assertInstanceOf(
             'Election',
             $Election
@@ -93,10 +93,10 @@ final class ElectionTest extends TestCase
 
     public function testCanNotCreateElectionWithExistingPendingElection(): void
     {
-        $vote_time = time() + 100000;
+        $vote_date = time() + 100000;
         $this->expectException(Exception::class);
         $this->expectExceptionMessage("An election with epoch 1 is still pending. Please complete that election before creating a new one.");
-        $PendingMember = $this->group->createElection(3, 2, 5, $vote_time);
+        $PendingMember = $this->group->createElection(3, 2, 5, $vote_date);
     }
 
     public function testCanVote(): void
@@ -141,7 +141,7 @@ final class ElectionTest extends TestCase
     {
         $Election = $this->group->getCurrentElection();
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage("This election is not over. Please wait until after " . $Election->vote_time);
+        $this->expectExceptionMessage("This election is not over. Please wait until after " . $Election->vote_date);
         $this->group->recordVoteResults();
     }
 
@@ -198,7 +198,7 @@ final class ElectionTest extends TestCase
         $this->assertCount(14,$votes);
 
         $Election = $this->group->getCurrentElection();
-        $Election->vote_time = time() - 10000;
+        $Election->vote_date = time() - 10000;
         $Election->save();
 
         $admin_candidates = $Election->getAdminCandidates();
@@ -234,7 +234,7 @@ final class ElectionTest extends TestCase
     {
         $Election = $this->group->getCurrentElection();
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_time . ".");
+        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_date . ".");
         $this->group->vote($this->account."5", $this->account."5", 2, 100);
     }
 
@@ -242,7 +242,7 @@ final class ElectionTest extends TestCase
     {
         $Election = $this->group->getCurrentElection();
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_time . ".");
+        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_date . ".");
         $this->group->removeVote($this->account."1", $this->account."1");
     }
 

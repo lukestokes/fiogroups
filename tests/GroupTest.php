@@ -115,5 +115,35 @@ final class GroupTest extends TestCase
         $this->assertEquals("test",$admins[0]->member_name);
     }
 
-
+    public function testCanPrint(): void
+    {
+        $Group = $this->factory->new("Group");
+        $Group->_id = 1;
+        $Group->read();
+        ob_start();
+        $Group->print("table_header");
+        $Group->print("table");
+        $output = ob_get_contents();
+        ob_end_clean();
+        $expected = '<tr>
+<th>Domain</th>
+<th>Group Fio Public Key</th>
+<th>Group Account</th>
+<th>Member Application Fee</th>
+<th>Epoch</th>
+<th>Date Created</th>
+<th> Id</th>
+</tr>
+<tr>
+<td>testing</td>
+<td>FIO7EwPGwmYGZF6fkvBNzbzYegj2q2dAZsp292P9oxkK8yjso5uDq</td>
+<td>pmz3qk1c4jqj</td>
+<td>10000000000</td>
+<td></td>
+<td>' . date("Y-m-d H:i:s",time()) . '</td>
+<td>1</td>
+</tr>
+';
+        $this->assertEquals($expected,$output);
+    }
 }

@@ -165,6 +165,40 @@ final class MemberTest extends TestCase
         $this->group->removeMember($this->account . "1");
     }
 
+    public function testCanPrint(): void
+    {
+        $Member = $this->factory->new("Member");
+        $Member->_id = 1;
+        $Member->read();
+        ob_start();
+        $Member->print("table_header");
+        $Member->print("table");
+        $output = ob_get_contents();
+        ob_end_clean();
+        $expected = '<tr>
+<th>Member Name</th>
+<th>Account</th>
+<th>Bio</th>
+<th>Date Added</th>
+<th>Last Verified Date</th>
+<th>Is Admin</th>
+<th>Is Active</th>
+<th> Id</th>
+</tr>
+<tr>
+<td>test</td>
+<td>wntoh3fogzcj</td>
+<td>This is my new bio</td>
+<td>' . date("Y-m-d H:i:s",time()) . '</td>
+<td>' . date("Y-m-d H:i:s",time()) . '</td>
+<td>false</td>
+<td>true</td>
+<td>1</td>
+</tr>
+';
+        $this->assertEquals($expected,$output);
+    }
+
     public function testCanRemoveMember(): void
     {
         $this->group->removeMember($this->account);

@@ -22,6 +22,8 @@ class Factory {
 class BaseObject {
     public $_id;
 
+    public $internal_fields = array('non_printable_fields','internal_fields','dataDir','dataStore','factory');
+    public $non_printable_fields = array();
     public $dataDir;
     public $dataStore;
     public $factory;
@@ -30,13 +32,27 @@ class BaseObject {
         $this->dataDir = $factory->dataDir;
         $this->dataStore = new \SleekDB\Store($object_type, $this->dataDir);
         $this->factory = $factory;
+        $this->non_printable_fields = array_merge($this->internal_fields, $this->non_printable_fields);
+    }
+
+    function getData() {
+        $object_data = get_object_vars($this);
+        foreach ($this->internal_fields as $internal_field) {
+            unset($object_data[$internal_field]);
+        }
+        return $object_data;
+    }
+
+    function getPrintableFields() {
+        $object_data = get_object_vars($this);
+        foreach ($this->non_printable_fields as $non_printable_field) {
+            unset($object_data[$non_printable_field]);
+        }
+        return $object_data;
     }
 
     function save() {
-        $object_data = get_object_vars($this);
-        unset($object_data["dataDir"]);
-        unset($object_data["dataStore"]);
-        unset($object_data["factory"]);
+        $object_data = $this->getData();
         if ($object_data["_id"]) {
             $this->dataStore->update($object_data);
         } else {
@@ -53,7 +69,8 @@ class BaseObject {
     }
 
     function loadData($data) {
-        foreach (get_object_vars($this) as $key => $value) {
+        $object_data = $this->getData();
+        foreach ($object_data as $key => $value) {
             if (array_key_exists($key, $data)) {
                 $this->$key = $data[$key];
             }
@@ -84,19 +101,76 @@ class BaseObject {
         return $objects;
     }
 
-    function print() {
-        $object_data = get_object_vars($this);
-        unset($object_data["dataDir"]);
-        unset($object_data["dataStore"]);
-        unset($object_data["factory"]);
-
-        foreach ($object_data as $key => $value) {
-            print $key . " = " . $value . br();
+    function print($format = "", $controls = null) {
+        $object_data = $this->getPrintableFields();
+        if ($format == "") {
+            foreach ($object_data as $key => $value) {
+                print $key . " = " . $value . br();
+            }
+        }
+        if ($format == "table") {
+            print "<tr>\n";
+            foreach ($object_data as $key => $value) {
+                print "<td>";
+                if (substr($key, 0, 3) == "is_") {
+                    if ($value) {
+                        print "true";
+                    } else {
+                        print "false";
+                    }
+                } elseif (strpos($key, "date") !== false) {
+                    print date("Y-m-d H:i:s",$value);
+                } else {
+                    if ($controls && array_key_exists($key, $controls)) {
+                        $value_to_display = str_replace(
+                            array('$value','$key'),
+                            array($value,$key),
+                            $controls[$key]);
+                        print $value_to_display;
+                    } else {
+                        print $value;
+                    }
+                }
+                print "</td>\n";
+            }
+            print "</tr>\n";
+        }
+        if ($format == "table_header") {
+            print "<tr>\n";
+            foreach ($object_data as $key => $value) {
+                print "<th>";
+                print ucwords(str_replace("_", " ", $key));
+                print "</th>\n";
+            }
+            print "</tr>\n";
         }
     }
+
+    function formHTML() {
+        $object_data = $this->getPrintableFields();
+        unset($object_data["_id"]);
+        if (array_key_exists("epoch", $object_data)) {
+            unset($object_data["epoch"]);
+        }
+        $form_html = '';
+        foreach ($object_data as $key => $value) {
+            if (substr($key, 0, 3) != "is_" && strpos($key, "date") === false) {
+                $form_html .= '
+                <div class="col-sm-2">
+                    <div class="form-group">
+                        <label>' . ucwords(str_replace("_", " ", $key)) . '</label>
+                        <input type="text" name="' . $key . '" id="' . $key . '" class="form-control" value="' . $value . '">
+                    </div>
+                </div>';
+            }
+        }
+        return $form_html;
+    }
+
 }
 
 class Group extends BaseObject {
+    public $domain;
     /**
      * FIO Public Key of the account which owns the domain.
      * Used for historical purposes once account becomes an msig.
@@ -106,7 +180,6 @@ class Group extends BaseObject {
      * NEW
      */
     public $group_account;
-    public $domain;
     /**
      * in SUFs
      */
@@ -140,6 +213,13 @@ class Group extends BaseObject {
         $Group->date_created = time();
         $Group->save();
         return $Group;
+    }
+
+    function getPendingMembers() {
+        $PendingMember = $this->factory->new("PendingMember");
+        $criteria = [["domain","=",$this->domain]];
+        $pendingmembers = $PendingMember->readAll($criteria);
+        return $pendingmembers;
     }
 
     function getMembers() {
@@ -277,7 +357,7 @@ class Group extends BaseObject {
         $AdminCandidate->account = $account;
         $AdminCandidate->save();
     }
-    function createElection($number_of_admins, $vote_threshold, $votes_per_member, $vote_time) {
+    function createElection($number_of_admins, $vote_threshold, $votes_per_member, $vote_date) {
         $Election = $this->factory->new("Election");
         $criteria = [["domain","=",$this->domain],["is_complete","=",false]];
         $found = $Election->read($criteria);
@@ -299,7 +379,7 @@ class Group extends BaseObject {
         $this->save();
         $Election->domain = $this->domain;
         $Election->epoch = $epoch;
-        $Election->vote_time = $vote_time;
+        $Election->vote_date = $vote_date;
         $Election->number_of_admins = $number_of_admins;
         $Election->vote_threshold = $vote_threshold;
         $Election->votes_per_member = $votes_per_member;
@@ -337,11 +417,11 @@ class Group extends BaseObject {
 }
 
 class PendingMember extends BaseObject {
+    public $domain;
     /**
      * FIO address at domain
      */
     public $member_name_requested;
-    public $domain;
     public $account;
     /**
      * Limit to 255 chars
@@ -352,11 +432,13 @@ class PendingMember extends BaseObject {
      * NEW
      */
     public $membership_payment_transaction_id;
+    public $non_printable_fields = array('domain','membership_payment_transaction_id');
+
 }
 
 class Member extends BaseObject {
-    public $member_name;
     public $domain;
+    public $member_name;
     public $account;
     /**
      * Limit to 255 chars
@@ -375,6 +457,8 @@ class Member extends BaseObject {
      * NEW
      */
     public $is_active;
+
+    public $non_printable_fields = array('domain');
 }
 
 class AdminCandidate extends BaseObject {
@@ -383,6 +467,7 @@ class AdminCandidate extends BaseObject {
      * NEW: updated this to just account
      */
     public $account;
+    public $non_printable_fields = array('domain');
 }
 
 class Vote extends BaseObject {
@@ -405,7 +490,8 @@ class Vote extends BaseObject {
     /**
      * NEW:
      */
-    public $time_of_vote;
+    public $date_of_vote;
+    public $non_printable_fields = array('domain');
 }
 
 class VoteResult extends BaseObject {
@@ -423,6 +509,7 @@ class VoteResult extends BaseObject {
      * Total number of votes received by this candidate
      */
     public $votes;
+    public $non_printable_fields = array('domain');
 }
 
 class Election extends BaseObject {
@@ -431,7 +518,7 @@ class Election extends BaseObject {
      * integer that increases with each election
      */
     public $epoch;
-    public $vote_time;
+    public $vote_date;
     /**
      * Integer for the number of admins that are being elected.
      * This will be the number of accounts on the msig that owns the domain.
@@ -456,10 +543,12 @@ class Election extends BaseObject {
      */
     public $date_certified;
 
+    public $non_printable_fields = array('domain');
+
     function vote($voter_account, $candidate_account, $rank, $vote_weight) {
         $Vote = $this->factory->new("Vote");
-        if (time() > $this->vote_time) {
-            throw new Exception("Voting for epoch " . $this->epoch . " is already closed. Now: " . time() . ", deadline: " . $this->vote_time . ".", 1);
+        if (time() > $this->vote_date) {
+            throw new Exception("Voting for epoch " . $this->epoch . " is already closed. Now: " . time() . ", deadline: " . $this->vote_date . ".", 1);
         }
         $voteQueryBuilder = $Vote->dataStore->createQueryBuilder();
         // can't vote for the same person twice
@@ -486,14 +575,14 @@ class Election extends BaseObject {
         $Vote->candidate_account = $candidate_account;
         $Vote->rank = $rank;
         $Vote->vote_weight = $vote_weight;
-        $Vote->time_of_vote = time();
+        $Vote->date_of_vote = time();
         $Vote->save();
     }
 
     function removeVote($voter_account, $candidate_account) {
         $Vote = $this->factory->new("Vote");
-        if (time() > $this->vote_time) {
-            throw new Exception("Voting for epoch " . $this->epoch . " is already closed. Now: " . time() . ", deadline: " . $this->vote_time . ".", 1);
+        if (time() > $this->vote_date) {
+            throw new Exception("Voting for epoch " . $this->epoch . " is already closed. Now: " . time() . ", deadline: " . $this->vote_date . ".", 1);
         }
         // can't vote for the same person twice
         $already_voted = $Vote->read([
@@ -518,8 +607,8 @@ class Election extends BaseObject {
     function recordVoteResults() {
         // TODO: Implemented ranked choice voting
         // https://github.com/fidian/rcv/blob/master/rcv.php
-        if (time() <= $this->vote_time) {
-            throw new Exception("This election is not over. Please wait until after " . $this->vote_time, 1);
+        if (time() <= $this->vote_date) {
+            throw new Exception("This election is not over. Please wait until after " . $this->vote_date, 1);
         }
         $admin_candidates = $this->getAdminCandidates();
         $Vote = $this->factory->new("Vote");
