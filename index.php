@@ -47,6 +47,9 @@ $explorer_url = "https://fio-test.bloks.io/";
           $notice = "";
           $domain = "";
 
+          // for testing
+          $logged_in_user = "loggedinuser";
+
           if (isset($_REQUEST["action"])) {
             $action = strip_tags($_REQUEST["action"]);
           }
@@ -56,10 +59,27 @@ $explorer_url = "https://fio-test.bloks.io/";
             $Group->read(['domain','=',$domain]);
           }
 
+          // for testing
+          if ($action == "testing_change_vote_date") {
+            try {
+              $Election = $Group->getCurrentElection();
+              $Election->vote_date = time() - 1000;
+              $Election->save();
+              $notice = "TESTING: Election vote date set in the past.";
+            } catch (Exception $e) { }
+          }
+          // for testing
+          if ($action == "clear_all_data") {
+            exec("rm -rf \"" . __DIR__ . "/data\"");
+            exec("mkdir \"" . __DIR__ . "/data\"");
+          }
+
           if ($action == "create_group") {
             $Group = $Factory->new("Group");
             try {
               $Group->create(
+                $logged_in_user,
+                strip_tags($_POST["creator_member_name"]),
                 strip_tags($_POST["group_fio_public_key"]),
                 strip_tags($_POST["group_account"]),
                 strip_tags($_POST["domain"]),
@@ -119,29 +139,26 @@ $explorer_url = "https://fio-test.bloks.io/";
 
           if ($action == "vote") {
             try {
-              // TODO: update this based on logged in user info
-              $voter_account = "loggedinuser";
               // count votes already cast and set rank that way?
               $rank = 1;
               // count tokens or something?
               $vote_weight = 1;
               $Group->vote(
-                strip_tags($voter_account),
+                strip_tags($logged_in_user),
                 strip_tags($_REQUEST["candidate_account"]),
                 $rank,
                 $vote_weight
               );
-              $notice = "Vote cast for " . strip_tags($_REQUEST["candidate_account"]) . " by " . $voter_account . ".";
+              $action = "show_votes";
+              $notice = "Vote cast for " . strip_tags($_REQUEST["candidate_account"]) . " by " . $logged_in_user . ".";
             } catch (Exception $e) {
               $notice = $e->getMessage();
             }
           }
           if ($action == "remove_vote") {
             try {
-              // TODO: update this based on logged in user info
-              $voter_account = "loggedinuser";
               $Group->removeVote(
-                strip_tags($voter_account),
+                strip_tags($logged_in_user),
                 strip_tags($_REQUEST["candidate_account"]),
               );
               $action = "show_votes";
@@ -168,9 +185,17 @@ $explorer_url = "https://fio-test.bloks.io/";
 
           if ($domain != "") {
             $Group = $Factory->new("Group");
-            $Group->read(['domain','=',$domain]);
+            $found = $Group->read(['domain','=',$domain]);
+            if (!$found) {
+              $domain = "";
+            }
+          }
+          if ($domain != "") {
             ?>
             <h1><?php print $domain; ?></h1>
+
+            <p>[<a href="?action=testing_change_vote_date&domain=<?php print $domain; ?>">TESTING: Change Election Vote Date</a>]</p>
+            <p>[<a href="?action=clear_all_data&domain=<?php print $domain; ?>">TESTING: Clear Data</a>]</p>
 
             <h2>Admins:</h2>
             <table class="table table-striped table-bordered">
@@ -185,26 +210,43 @@ $explorer_url = "https://fio-test.bloks.io/";
             ?>
             </table>
 
-            <h2>Admin Candidates:</h2>
-            <table class="table table-striped table-bordered">
             <?php
             $admincandidates = $Group->getAdminCandidates();
             if (count($admincandidates)) {
+              ?>
+              <h2>Admin Candidates:</h2>
+              <table class="table table-striped table-bordered">
+              <?php
               $admincandidates[0]->print('table_header');
-            }
-            foreach ($admincandidates as $AdminCandidate) {
-              $controls = array(
-                'account' => '$account [<a href="?action=vote&domain=$domain&candidate_account=$account">Vote</a>]',
-              );
-              $AdminCandidate->print('table',$controls);
+              foreach ($admincandidates as $AdminCandidate) {
+                $controls = array();
+                if ($Group->hasActiveElection()) {
+                  $controls = array(
+                    'account' => '$account [<a href="?action=vote&domain=$domain&candidate_account=$account">Vote</a>]',
+                  );
+                }
+                $AdminCandidate->print('table',$controls);
+              }
+              ?>
+              </table>
+              <?php
             }
             ?>
-            </table>
 
-            <h2>Current Election:</h2>
+            <h2>Elections:</h2>
             <?php
+            $show_create_election = false;
+            $election_form_values = array();
             try {
               $Election = $Group->getCurrentElection();
+              if ($Election->is_complete) {
+                $show_create_election = true;
+                $election_form_values = array(
+                  'number_of_admins' => $Election->number_of_admins,
+                  'vote_threshold' => $Election->vote_threshold,
+                  'votes_per_member' => $Election->votes_per_member,
+                );
+              }
               ?>
               <table class="table table-striped table-bordered">
               <?php
@@ -236,14 +278,17 @@ $explorer_url = "https://fio-test.bloks.io/";
                 }
               }
             } catch (Exception $e) {
+              $show_create_election = true;
+            }
+            if ($show_create_election) {
               // No current election.
               ?>
-              <form method="POST">
+              <form method="POST" id="create_election">
                 <input type="hidden" name="action" value="create_election">
                 <input type="hidden" name="domain" value="<?php print $domain; ?>">
                   <?php
                   $Election = $Factory->new("Election");
-                  print $Election->formHTML();
+                  print $Election->formHTML($election_form_values);
                   $vote_date = date("Y-m-d",time() + (30 * 24 * 60 * 60));
                   ?>
                 <div class="col-sm-2">
@@ -259,7 +304,6 @@ $explorer_url = "https://fio-test.bloks.io/";
               <?php
             }
             ?>
-            </table>
 
             <h2>Members:</h2>
             <table class="table table-striped table-bordered">
@@ -294,7 +338,7 @@ $explorer_url = "https://fio-test.bloks.io/";
             ?>
             </table>
             <h1>Apply</h1>
-            <form method="POST">
+            <form method="POST" id="apply_to_group">
               <input type="hidden" name="action" value="apply_to_group">
               <input type="hidden" name="domain" value="<?php print $domain; ?>">
               <input type="hidden" name="membership_payment_transaction_id" value="1234567890">
@@ -310,10 +354,6 @@ $explorer_url = "https://fio-test.bloks.io/";
           }
 
           if ($domain == "") {
-            ?>
-            <h1>Groups:</h1>
-            <table class="table table-striped table-bordered">
-            <?php
             $Group = $Factory->new("Group");
             $criteria = ['domain','!=',''];
             if ($domain != "") {
@@ -321,27 +361,40 @@ $explorer_url = "https://fio-test.bloks.io/";
             }
             $groups = $Group->readAll($criteria);
             if (count($groups)) {
+              ?>
+              <h1>Groups:</h1>
+              <table class="table table-striped table-bordered">
+              <?php
               $groups[0]->print('table_header');
-            }
-            foreach ($groups as $Group) {
-              $controls = array('domain' => '<a href="?domain=$domain">$domain</a>');
-              $Group->print('table',$controls);
+              foreach ($groups as $Group) {
+                $controls = array('domain' => '<a href="?domain=$domain">$domain</a>');
+                $Group->print('table',$controls);
+              }
+              ?>
+              </table>
+              <?php
             }
             ?>
-            </table>
-
             <h1>Create Group</h1>
-            <form method="POST">
+            <form method="POST" id="create_group">
               <input type="hidden" name="action" value="create_group">
-                <?php
-                $Group = $Factory->new("Group");
-                print $Group->formHTML();
-                ?>
+              <div class="col-sm-2">
+                  <div class="form-group">
+                      <label>Member Name</label>
+                      <input type="text" name="creator_member_name" id="creator_member_name" class="form-control" value="">
+                  </div>
+              </div>
+              <?php
+              $Group = $Factory->new("Group");
+              print $Group->formHTML();
+              ?>
               <div class="form-group">
                 <button type="submit" class="btn btn-primary">Create Group</button>
               </div>
             </form>
             <?php
+          } else {
+            print '<p>[<a href="?action=home">Home</a>]</p>';
           }
           ?>
 

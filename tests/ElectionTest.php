@@ -9,6 +9,8 @@ final class ElectionTest extends TestCase
     public $fio_public_key = "FIO7EwPGwmYGZF6fkvBNzbzYegj2q2dAZsp292P9oxkK8yjso5uDq";
     public $group_account = "pmz3qk1c4jqj";
     public $domain = "testing";
+    public $creator_account = "loggedinuser";
+    public $creator_member_name = "satoshi@testing";
     public $member_application_fee = 10 * 1000000000;
     public $account = "wntoh3fogzcj";
     public $fio_name = "test";
@@ -33,7 +35,14 @@ final class ElectionTest extends TestCase
         $Group = $this->factory->new("Group");
         $group_data = $Group->dataStore->findOneBy(["domain","=",$this->domain]);
         if (is_null($group_data)) {
-            $this->group = $Group->create($this->fio_public_key, $this->group_account, $this->domain, $this->member_application_fee);
+            $this->group = $Group->create(
+                $this->creator_account,
+                $this->creator_member_name,
+                $this->fio_public_key,
+                $this->group_account,
+                $this->domain,
+                $this->member_application_fee
+            );
             // set up some candidates
             $this->group->apply($this->account, $this->fio_name, $this->bio, $this->transaction_id);
             $this->group->approve($this->account);
@@ -76,6 +85,12 @@ final class ElectionTest extends TestCase
         $this->group->vote($this->account, $this->account, 1, 10);
     }
 
+    public function testHasNoActiveElection(): void
+    {
+        $has_election = $this->group->hasActiveElection();
+        $this->assertFalse($has_election);
+    }
+
     public function testCanCreateElection(): void
     {
         $Election = $this->factory->new("Election");
@@ -89,6 +104,12 @@ final class ElectionTest extends TestCase
         );
         $election_data = $Election->dataStore->findAll();
         $this->assertCount(1,$election_data);
+    }
+
+    public function testHasActiveElection(): void
+    {
+        $has_election = $this->group->hasActiveElection();
+        $this->assertTrue($has_election);
     }
 
     public function testCanNotCreateElectionWithExistingPendingElection(): void
@@ -140,8 +161,9 @@ final class ElectionTest extends TestCase
     public function testCanNotRecordVotesBeforeElectionVotingIsComplete(): void
     {
         $Election = $this->group->getCurrentElection();
+        $date_display = date("Y-m-d H:i:s",$Election->vote_date);
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage("This election is not over. Please wait until after " . $Election->vote_date);
+        $this->expectExceptionMessage("This election is not over. Please wait until after " . $date_display);
         $this->group->recordVoteResults();
     }
 
@@ -160,15 +182,39 @@ final class ElectionTest extends TestCase
         $this->assertCount(5,$admin_candidates);
     }
 
+    public function testCanNotVoteAfterElectionVoteDate(): void
+    {
+        $Election = $this->group->getCurrentElection();
+        $Election->vote_date = time() - 10000;
+        $Election->save();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_date . ".");
+        $this->group->vote($this->account."5", $this->account."5", 2, 100);
+    }
+
+    public function testCanNotRemoveVoteAfterElectionIsComplete(): void
+    {
+        $Election = $this->group->getCurrentElection();
+        $Election->vote_date = time() - 10000;
+        $Election->save();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_date . ".");
+        $this->group->removeVote($this->account."1", $this->account."1");
+    }
+
     public function testCanRecordVotes(): void
     {
+        $Election = $this->group->getCurrentElection();
+        $Election->vote_date = time() + 100;
+        $Election->save();
+
         $Member = $this->factory->new("Member");
         $criteria = ["domain","=",$this->domain];
         $members = $Member->readAll($criteria);
-        $this->assertCount(7,$members);
+        $this->assertCount(8,$members);
         $criteria = [["domain","=",$this->domain],["is_admin","=",true]];
         $admins = $Member->readAll($criteria);
-        $this->assertCount(0,$admins);
+        $this->assertCount(1,$admins);
 
         $VoteResult = $this->factory->new("VoteResult");
         $criteria = [["domain","=",$this->domain],["epoch","=",1]];
@@ -197,7 +243,6 @@ final class ElectionTest extends TestCase
         $votes = $Vote->readAll($criteria);
         $this->assertCount(14,$votes);
 
-        $Election = $this->group->getCurrentElection();
         $Election->vote_date = time() - 10000;
         $Election->save();
 
@@ -228,24 +273,8 @@ final class ElectionTest extends TestCase
         $this->assertEquals($this->account."3",$voteresults[2]->candidate_account);
         $this->assertEquals(3,$voteresults[2]->rank);
         $this->assertEquals(110,$voteresults[2]->votes);
+
+        $this->assertEquals(2,$this->group->epoch);
     }
-
-    public function testCanNotVoteAfterElectionIsComplete(): void
-    {
-        $Election = $this->group->getCurrentElection();
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_date . ".");
-        $this->group->vote($this->account."5", $this->account."5", 2, 100);
-    }
-
-    public function testCanNotRemoveVoteAfterElectionIsComplete(): void
-    {
-        $Election = $this->group->getCurrentElection();
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage("Voting for epoch 1 is already closed. Now: " . time() . ", deadline: " . $Election->vote_date . ".");
-        $this->group->removeVote($this->account."1", $this->account."1");
-    }
-
-
 
 }

@@ -7,6 +7,8 @@ final class GroupTest extends TestCase
     public $fio_public_key = "FIO7EwPGwmYGZF6fkvBNzbzYegj2q2dAZsp292P9oxkK8yjso5uDq";
     public $group_account = "pmz3qk1c4jqj";
     public $domain = "testing";
+    public $creator_account = "loggedinuser";
+    public $creator_member_name = "satoshi";
     public $member_application_fee = 10 * 1000000000;
 
     public static function setUpBeforeClass(): void
@@ -26,11 +28,25 @@ final class GroupTest extends TestCase
     {
         // Create a Group
         $Group = $this->factory->new("Group");
-        $Group = $Group->create($this->fio_public_key, $this->group_account, $this->domain, $this->member_application_fee);
+        $Group = $Group->create(
+            $this->creator_account,
+            $this->creator_member_name,
+            $this->fio_public_key,
+            $this->group_account,
+            $this->domain,
+            $this->member_application_fee
+        );
         $this->assertInstanceOf(
             'Group',
             $Group
         );
+        $members = $Group->getMembers();
+        $this->assertCount(1,$members);
+        $this->assertEquals($this->creator_member_name,$members[0]->member_name);
+
+        $admins = $Group->getAdmins();
+        $this->assertCount(1,$admins);
+        $this->assertEquals($this->creator_account,$admins[0]->account);
     }
 
     public function testCanNotCreateDuplicateGroup(): void
@@ -39,14 +55,28 @@ final class GroupTest extends TestCase
         $Group = $this->factory->new("Group");
         $this->expectException(Exception::class);
         $this->expectExceptionMessage("A group for domain testing already exists.");
-        $Group = $Group->create($this->fio_public_key, $this->group_account, $this->domain, $this->member_application_fee);
+        $Group = $Group->create(
+            $this->creator_account,
+            $this->creator_member_name,
+            $this->fio_public_key,
+            $this->group_account,
+            $this->domain,
+            $this->member_application_fee
+        );
     }
 
     public function testCanCreateMultipleGroups(): void
     {
         // Create a Group
         $Group = $this->factory->new("Group");
-        $Group = $Group->create($this->fio_public_key, $this->group_account, $this->domain . "1", $this->member_application_fee);
+        $Group = $Group->create(
+            $this->creator_account,
+            $this->creator_member_name,
+            $this->fio_public_key,
+            $this->group_account,
+            $this->domain . "1",
+            $this->member_application_fee
+        );
         $this->assertEquals("testing1",$Group->domain);
     }
 
@@ -94,8 +124,8 @@ final class GroupTest extends TestCase
         $Member->save();
 
         $members = $Group->getMembers();
-        $this->assertCount(3,$members);
-        $this->assertEquals("test1",$members[1]->member_name);
+        $this->assertCount(4,$members);
+        $this->assertEquals("test1",$members[2]->member_name);
     }
 
     public function testCanGetAdmins(): void
@@ -105,14 +135,14 @@ final class GroupTest extends TestCase
         $Group->read();
 
         $Member = $this->factory->new("Member");
-        $Member->_id = 1;
+        $Member->_id = 3;
         $Member->read();
         $Member->is_admin = true;
         $Member->save();
 
         $admins = $Group->getAdmins();
-        $this->assertCount(1,$admins);
-        $this->assertEquals("test",$admins[0]->member_name);
+        $this->assertCount(2,$admins);
+        $this->assertEquals("test",$admins[1]->member_name);
     }
 
     public function testCanGetAdminCandidates(): void
@@ -134,6 +164,7 @@ final class GroupTest extends TestCase
         $Group = $this->factory->new("Group");
         $Group->_id = 1;
         $Group->read();
+        $date_created = $Group->date_created;
         ob_start();
         $Group->print("table_header");
         $Group->print("table");
@@ -154,7 +185,7 @@ final class GroupTest extends TestCase
 <td>pmz3qk1c4jqj</td>
 <td>10000000000</td>
 <td></td>
-<td>' . date("Y-m-d H:i:s",time()) . '</td>
+<td>' . date("Y-m-d H:i:s",$date_created) . '</td>
 <td>1</td>
 </tr>
 ';

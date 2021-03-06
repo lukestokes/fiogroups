@@ -9,6 +9,8 @@ final class MemberTest extends TestCase
     public $fio_public_key = "FIO7EwPGwmYGZF6fkvBNzbzYegj2q2dAZsp292P9oxkK8yjso5uDq";
     public $group_account = "pmz3qk1c4jqj";
     public $domain = "testing";
+    public $creator_account = "loggedinuser";
+    public $creator_member_name = "satoshi@testing";
     public $member_application_fee = 10 * 1000000000;
     public $account = "wntoh3fogzcj";
     public $fio_name = "test";
@@ -33,7 +35,14 @@ final class MemberTest extends TestCase
         $Group = $this->factory->new("Group");
         $group_data = $Group->dataStore->findOneBy(["domain","=",$this->domain]);
         if (is_null($group_data)) {
-            $this->group = $Group->create($this->fio_public_key, $this->group_account, $this->domain, $this->member_application_fee);
+            $this->group = $Group->create(
+                $this->creator_account,
+                $this->creator_member_name,
+                $this->fio_public_key,
+                $this->group_account,
+                $this->domain,
+                $this->member_application_fee
+            );
         } else {
             $Group->loadData($group_data);
             $this->group = $Group;
@@ -96,7 +105,7 @@ final class MemberTest extends TestCase
     public function testCanUpdateBio(): void
     {
         $Member = $this->factory->new("Member");
-        $Member->_id = 1;
+        $Member->_id = 2;
         $Member->read();
         $this->assertEquals($Member->bio, $this->bio);
         $new_bio = "This is my new bio";
@@ -115,7 +124,7 @@ final class MemberTest extends TestCase
     public function testCanVerifyMember(): void
     {
         $Member = $this->factory->new("Member");
-        $Member->_id = 1;
+        $Member->_id = 2;
         $Member->read();
         $Member->last_verified_date = time() - 100;
         $Member->save();
@@ -168,8 +177,10 @@ final class MemberTest extends TestCase
     public function testCanPrint(): void
     {
         $Member = $this->factory->new("Member");
-        $Member->_id = 1;
+        $Member->_id = 2;
         $Member->read();
+        $date_added = date("Y-m-d H:i:s",$Member->date_added);
+        $last_verified_date = date("Y-m-d H:i:s",$Member->last_verified_date);
         ob_start();
         $Member->print("table_header");
         $Member->print("table");
@@ -189,11 +200,11 @@ final class MemberTest extends TestCase
 <td>test</td>
 <td>wntoh3fogzcj</td>
 <td>This is my new bio</td>
-<td>' . date("Y-m-d H:i:s",time()) . '</td>
-<td>' . date("Y-m-d H:i:s",time()) . '</td>
+<td>' . $date_added . '</td>
+<td>' . $last_verified_date . '</td>
 <td>false</td>
 <td>true</td>
-<td>1</td>
+<td>2</td>
 </tr>
 ';
         $this->assertEquals($expected,$output);
@@ -203,7 +214,7 @@ final class MemberTest extends TestCase
     {
         $this->group->removeMember($this->account);
         $Member = $this->factory->new("Member");
-        $Member->_id = 1;
+        $Member->_id = 2;
         $found = $Member->read();
         $this->assertFalse($found);
     }

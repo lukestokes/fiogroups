@@ -126,7 +126,11 @@ class BaseObject {
                         $value_to_display = "false";
                     }
                 } elseif (strpos($key, "date") !== false && $key != "candidate_account") {
-                    $value_to_display = date("Y-m-d H:i:s",$value);
+                    if ($value) {
+                        $value_to_display = date("Y-m-d H:i:s",$value);
+                    } else {
+                        $value_to_display = "";
+                    }
                 }
                 $values_to_display[$key] = $value_to_display;
                 $object_data[$key] = $value_to_display;
@@ -155,7 +159,7 @@ class BaseObject {
         }
     }
 
-    function formHTML() {
+    function formHTML($values = array()) {
         $object_data = $this->getPrintableFields();
         unset($object_data["_id"]);
         if (array_key_exists("epoch", $object_data)) {
@@ -163,12 +167,16 @@ class BaseObject {
         }
         $form_html = '';
         foreach ($object_data as $key => $value) {
+            $form_value = $value;
+            if (array_key_exists($key, $values)) {
+                $form_value = $values[$key];
+            }
             if (substr($key, 0, 3) != "is_" && strpos($key, "date") === false) {
                 $form_html .= '
                 <div class="col-sm-2">
                     <div class="form-group">
                         <label>' . ucwords(str_replace("_", " ", $key)) . '</label>
-                        <input type="text" name="' . $key . '" id="' . $key . '" class="form-control" value="' . $value . '">
+                        <input type="text" name="' . $key . '" id="' . $key . '" class="form-control" value="' . $form_value . '">
                     </div>
                 </div>';
             }
@@ -203,7 +211,7 @@ class Group extends BaseObject {
     /**
      * Throws exception
      */
-    function create($fio_public_key, $group_account, $domain, $member_application_fee) {
+    function create($creator_account, $creator_member_name, $fio_public_key, $group_account, $domain, $member_application_fee) {
         $Group = $this->factory->new("Group");
         $criteria = ["domain","=",$domain];
         $found = $Group->read($criteria);
@@ -215,12 +223,21 @@ class Group extends BaseObject {
         // TODO: check to see if this domain exists on chain yet
         // TODO: support existing domains if owned by the key?
         // TODO: create domain if needed
+        $membership_payment_transaction_id = 12345;
         $Group->domain = $domain;
         // TODO: should I calculate this automatically using the pub key?
         $Group->group_account = $group_account;
         $Group->member_application_fee = $member_application_fee;
         $Group->date_created = time();
         $Group->save();
+
+        // TODO: adjust the permissions of the group so that $creator_account is the owner
+        $bio = "I am Satoshi.";
+        $Group->apply($creator_account, $creator_member_name, $bio, $membership_payment_transaction_id);
+        $Group->approve($creator_account);
+        $members = $Group->getMembers();
+        $members[0]->is_admin = true;
+        $members[0]->save();
         return $Group;
     }
 
@@ -270,6 +287,7 @@ class Group extends BaseObject {
 
     function apply($account, $member_name_requested, $bio, $membership_payment_transaction_id) {
         $PendingMember = $this->factory->new("PendingMember");
+        // TODO: validate $membership_payment_transaction_id
         // TODO: double check on chain member_name_requested hasn't been claimed already.
         $criteria = [["domain","=",$this->domain],["account","=",$account]];
         $found = $PendingMember->read($criteria);
@@ -403,6 +421,17 @@ class Group extends BaseObject {
         return $Election;
     }
 
+    function hasActiveElection() {
+        $has_election = false;
+        try {
+            $Election = $this->getCurrentElection();
+            if (!$Election->is_complete) {
+                $has_election = true;
+            }
+        } catch (Exception $e) { }
+        return $has_election;
+    }
+
     function getCurrentElection() {
         $Election = $this->factory->new("Election");
         $found = $Election->read([["domain","=",$this->domain],["epoch","=",$this->epoch]]);
@@ -428,6 +457,8 @@ class Group extends BaseObject {
         $Election = $this->getCurrentElection();
         // note: this can throw exception
         $Election->recordVoteResults();
+        $this->epoch++;
+        $this->save();
     }
 
 }
@@ -600,7 +631,6 @@ class Election extends BaseObject {
         if (time() > $this->vote_date) {
             throw new Exception("Voting for epoch " . $this->epoch . " is already closed. Now: " . time() . ", deadline: " . $this->vote_date . ".", 1);
         }
-        // can't vote for the same person twice
         $already_voted = $Vote->read([
             ["domain","=",$this->domain],
             ["epoch","=",$this->epoch],
@@ -624,7 +654,8 @@ class Election extends BaseObject {
         // TODO: Implemented ranked choice voting
         // https://github.com/fidian/rcv/blob/master/rcv.php
         if (time() <= $this->vote_date) {
-            throw new Exception("This election is not over. Please wait until after " . $this->vote_date, 1);
+            $date_display = date("Y-m-d H:i:s",$this->vote_date);
+            throw new Exception("This election is not over. Please wait until after " . $date_display, 1);
         }
         $admin_candidates = $this->getAdminCandidates();
         $Vote = $this->factory->new("Vote");
