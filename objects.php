@@ -102,42 +102,51 @@ class BaseObject {
     }
 
     function print($format = "", $controls = null) {
-        $object_data = $this->getPrintableFields();
+        $object_data = $this->getData();
+        $printable_object_data = $this->getPrintableFields();
         if ($format == "") {
-            foreach ($object_data as $key => $value) {
+            foreach ($printable_object_data as $key => $value) {
                 print $key . " = " . $value . br();
             }
         }
+        $display_keys = array();
+        foreach ($object_data as $key => $value) {
+            $display_keys[] = '$' . $key;
+        }
         if ($format == "table") {
             print "<tr>\n";
-            foreach ($object_data as $key => $value) {
-                print "<td>";
+            // pre-parse
+            $values_to_display = array();
+            foreach ($printable_object_data as $key => $value) {
+                $value_to_display = $value;
                 if (substr($key, 0, 3) == "is_") {
                     if ($value) {
-                        print "true";
+                        $value_to_display = "true";
                     } else {
-                        print "false";
+                        $value_to_display = "false";
                     }
-                } elseif (strpos($key, "date") !== false) {
-                    print date("Y-m-d H:i:s",$value);
-                } else {
-                    if ($controls && array_key_exists($key, $controls)) {
-                        $value_to_display = str_replace(
-                            array('$value','$key'),
-                            array($value,$key),
-                            $controls[$key]);
-                        print $value_to_display;
-                    } else {
-                        print $value;
-                    }
+                } elseif (strpos($key, "date") !== false && $key != "candidate_account") {
+                    $value_to_display = date("Y-m-d H:i:s",$value);
                 }
+                $values_to_display[$key] = $value_to_display;
+                $object_data[$key] = $value_to_display;
+            }
+            foreach ($values_to_display as $key => $value_to_display) {
+                print "<td>";
+                if ($controls && array_key_exists($key, $controls)) {
+                    $value_to_display = str_replace(
+                        $display_keys,
+                        $object_data,
+                        $controls[$key]);
+                }
+                print $value_to_display;
                 print "</td>\n";
             }
             print "</tr>\n";
         }
         if ($format == "table_header") {
             print "<tr>\n";
-            foreach ($object_data as $key => $value) {
+            foreach ($printable_object_data as $key => $value) {
                 print "<th>";
                 print ucwords(str_replace("_", " ", $key));
                 print "</th>\n";
@@ -234,6 +243,13 @@ class Group extends BaseObject {
         $criteria = [["domain","=",$this->domain], ["is_active", "=", true], ["is_admin","=",true]];
         $admins = $Member->readAll($criteria);
         return $admins;
+    }
+
+    function getAdminCandidates() {
+        $AdminCandidate = $this->factory->new("AdminCandidate");
+        $criteria = [["domain","=",$this->domain]];
+        $admincandidates = $AdminCandidate->readAll($criteria);
+        return $admincandidates;
     }
 
     function getApplicatonFee($client) {

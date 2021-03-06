@@ -115,6 +115,20 @@ final class GroupTest extends TestCase
         $this->assertEquals("test",$admins[0]->member_name);
     }
 
+    public function testCanGetAdminCandidates(): void
+    {
+        $Group = $this->factory->new("Group");
+        $Group->_id = 1;
+        $Group->read();
+
+        $Group->registerCandidate("wntoh3fogzcj");
+        $Group->registerCandidate("wntoh3fogzcj1");
+
+        $admin_candidates = $Group->getAdminCandidates();
+        $this->assertCount(2,$admin_candidates);
+        $this->assertEquals("wntoh3fogzcj",$admin_candidates[0]->account);
+    }
+
     public function testCanPrint(): void
     {
         $Group = $this->factory->new("Group");
