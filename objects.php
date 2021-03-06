@@ -229,6 +229,7 @@ class Group extends BaseObject {
         $Group->group_account = $group_account;
         $Group->member_application_fee = $member_application_fee;
         $Group->date_created = time();
+        $Group->epoch = 1;
         $Group->save();
 
         // TODO: adjust the permissions of the group so that $creator_account is the owner
@@ -487,21 +488,8 @@ class Group extends BaseObject {
         if ($found) {
             throw new Exception("An election with epoch " . $Election->epoch . " is still pending. Please complete that election before creating a new one.", 1);
         }
-        $electionQueryBuilder = $Election->dataStore->createQueryBuilder();
-        $result = $electionQueryBuilder
-            ->select(["max_epoch" => ["MAX" => "epoch"]])
-            ->where(["domain","=",$this->domain])
-            ->groupBy(["domain"], "domain_group")
-            ->getQuery()
-            ->fetch();
-        $epoch = 1;
-        if (isset($result["epoch"])) {
-            $epoch = $result["epoch"]+1;
-        }
-        $this->epoch = $epoch;
-        $this->save();
         $Election->domain = $this->domain;
-        $Election->epoch = $epoch;
+        $Election->epoch = $this->epoch;
         $Election->vote_date = $vote_date;
         $Election->number_of_admins = $number_of_admins;
         $Election->vote_threshold = $vote_threshold;

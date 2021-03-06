@@ -81,7 +81,7 @@ final class ElectionTest extends TestCase
     public function testCanNotVoteOnElectionNotFound(): void
     {
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage("An election with epoch  for testing can't be found.");
+        $this->expectExceptionMessage("An election with epoch 1 for testing can't be found.");
         $this->group->vote($this->account, $this->account, 1, 10);
     }
 
@@ -250,6 +250,7 @@ final class ElectionTest extends TestCase
         $this->assertCount(5,$admin_candidates);
 
         $this->group->recordVoteResults();
+        $this->group->read();
 
         $admin_candidates = $Election->getAdminCandidates();
         $this->assertCount(0,$admin_candidates);
@@ -275,6 +276,40 @@ final class ElectionTest extends TestCase
         $this->assertEquals(110,$voteresults[2]->votes);
 
         $this->assertEquals(2,$this->group->epoch);
+    }
+
+    public function testCanCreateSecondElection(): void
+    {
+        $this->assertEquals(2,$this->group->epoch);
+        $Election = $this->factory->new("Election");
+        $criteria = ["domain","=",$this->domain];
+        $elections = $Election->readAll($criteria);
+        $this->assertCount(1,$elections);
+        $vote_date = time() + 100000;
+        $Election = $this->group->createElection(3, 2, 5, $vote_date);
+        $this->assertInstanceOf(
+            'Election',
+            $Election
+        );
+        $elections = $Election->readAll($criteria);
+        $this->assertCount(2,$elections);
+        $this->group->read();
+        $this->assertEquals(2,$this->group->epoch);
+
+        $this->group->vote($this->account."1", $this->account."1", 2, 100);
+        $this->group->vote($this->account."1", $this->account."2", 3, 100);
+        $this->group->vote($this->account."1", $this->account."3", 4, 100);
+        $this->group->vote($this->account."1", $this->account."4", 5, 10);
+        $this->group->vote($this->account."1", $this->account."5", 5, 10);
+        $this->group->vote($this->account."2", $this->account."1", 2, 100);
+        $this->group->vote($this->account."2", $this->account."2", 3, 100);
+        $this->group->vote($this->account."3", $this->account."1", 2, 1000);
+        $this->group->vote($this->account."4", $this->account."2", 2, 100);
+        $Election->vote_date = time() - 10000;
+        $Election->save();
+        $this->group->recordVoteResults();
+        $this->group->read();
+        $this->assertEquals(3,$this->group->epoch);
     }
 
 }
