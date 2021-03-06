@@ -46,6 +46,7 @@ $explorer_url = "https://fio-test.bloks.io/";
           $action = "";
           $notice = "";
           $domain = "";
+          $is_admin = false;
 
           // for testing
           $logged_in_user = "loggedinuser";
@@ -69,9 +70,48 @@ $explorer_url = "https://fio-test.bloks.io/";
             } catch (Exception $e) { }
           }
           // for testing
-          if ($action == "clear_all_data") {
+          if ($action == "testing_clear_all_data") {
             exec("rm -rf \"" . __DIR__ . "/data\"");
             exec("mkdir \"" . __DIR__ . "/data\"");
+          }
+          // for testing
+          if ($action == "testing_make_admin") {
+            $Member = $Factory->new("Member");
+            $criteria = [["domain","=",$domain],["account","=",$logged_in_user]];
+            try {
+              $found = $Member->read($criteria);
+              if ($found) {
+                $Member->is_admin = true;
+                $Member->save();
+                $is_admin = true;
+              }
+            } catch (Exception $e) {
+              $notice = $e->getMessage();
+            }
+          }
+          // for testing
+          if ($action == "testing_unmake_admin") {
+            $Member = $Factory->new("Member");
+            $criteria = [["domain","=",$domain],["account","=",$logged_in_user]];
+            try {
+              $found = $Member->read($criteria);
+              if ($found) {
+                $Member->is_admin = false;
+                $Member->save();
+                $is_admin = false;
+              }
+            } catch (Exception $e) {
+              $notice = $e->getMessage();
+            }
+          }
+
+          if ($domain != "") {
+            $Member = $Factory->new("Member");
+            $criteria = [["domain","=",$domain],["account","=",$logged_in_user]];
+            $found = $Member->read($criteria);
+            if ($found) {
+                $is_admin = $Member->is_admin;
+            }
           }
 
           if ($action == "create_group") {
@@ -137,6 +177,47 @@ $explorer_url = "https://fio-test.bloks.io/";
             }
           }
 
+          if ($action == "disable_member") {
+            try {
+              $Group->disable(
+                strip_tags($_REQUEST["account"])
+              );
+            } catch (Exception $e) {
+              $notice = $e->getMessage();
+            }
+          }
+
+          if ($action == "enable_member") {
+            try {
+              $Group->enable(
+                strip_tags($_REQUEST["account"])
+              );
+            } catch (Exception $e) {
+              $notice = $e->getMessage();
+            }
+          }
+
+          if ($action == "deactivate_member") {
+            try {
+              $Group->deactivate(
+                strip_tags($_REQUEST["account"])
+              );
+            } catch (Exception $e) {
+              $notice = $e->getMessage();
+            }
+          }
+
+          if ($action == "activate_member") {
+            try {
+              $Group->activate(
+                strip_tags($_REQUEST["account"])
+              );
+            } catch (Exception $e) {
+              $notice = $e->getMessage();
+            }
+          }
+
+
           if ($action == "vote") {
             try {
               // count votes already cast and set rank that way?
@@ -194,8 +275,12 @@ $explorer_url = "https://fio-test.bloks.io/";
             ?>
             <h1><?php print $domain; ?></h1>
 
-            <p>[<a href="?action=testing_change_vote_date&domain=<?php print $domain; ?>">TESTING: Change Election Vote Date</a>]</p>
-            <p>[<a href="?action=clear_all_data&domain=<?php print $domain; ?>">TESTING: Clear Data</a>]</p>
+            <p>
+              [<a href="?action=testing_change_vote_date&domain=<?php print $domain; ?>">TESTING: Change Election Vote Date</a>]<br />
+              [<a href="?action=testing_clear_all_data&domain=<?php print $domain; ?>">TESTING: Clear Data</a>]<br />
+              [<a href="?action=testing_make_admin&domain=<?php print $domain; ?>">TESTING: Make Admin</a>]<br />
+              [<a href="?action=testing_unmake_admin&domain=<?php print $domain; ?>">TESTING: Unmake Admin</a>]<br />
+            </p>
 
             <h2>Admins:</h2>
             <table class="table table-striped table-bordered">
@@ -303,40 +388,91 @@ $explorer_url = "https://fio-test.bloks.io/";
               </form>
               <?php
             }
-            ?>
 
-            <h2>Members:</h2>
-            <table class="table table-striped table-bordered">
-            <?php
+            $inactive_members = $Group->getInactiveMembers();
+            if (count($inactive_members)) {
+              ?>
+              <h2>Inactive Members:</h2>
+              <table id="inactive_members" class="table table-striped table-bordered">
+              <?php
+              $inactive_members[0]->print('table_header');
+              foreach ($inactive_members as $InactiveMember) {
+                $controls = array(
+                  'account' => '$account [<a href="?action=activate_member&domain=$domain&account=$account">Activate</a>]',
+                );
+                if ($is_admin) {
+                  $controls['account'] .= ' [<a href="?action=disable_member&domain=$domain&account=$account">Disable</a>]';
+                }
+                $InactiveMember->print('table',$controls);
+              }
+              ?>
+              </table>
+              <?php
+            }
+
+            $disabled_members = $Group->getDisabledMembers();
+            if (count($disabled_members)) {
+              ?>
+              <h2>Disabled Members:</h2>
+              <table id="disabled_members" class="table table-striped table-bordered">
+              <?php
+              $disabled_members[0]->print('table_header');
+              foreach ($disabled_members as $DisabledMember) {
+                $controls = array();
+                if ($is_admin) {
+                  $controls = array(
+                    'account' => '$account [<a href="?action=enable_member&domain=$domain&account=$account">Enable</a>]',
+                  );
+                }
+                $DisabledMember->print('table',$controls);
+              }
+              ?>
+              </table>
+              <?php
+            }
+
             $members = $Group->getMembers();
             if (count($members)) {
+              ?>
+              <h2>Members:</h2>
+              <table id="members" class="table table-striped table-bordered">
+              <?php
               $members[0]->print('table_header');
+              foreach ($members as $Member) {
+                $controls = array(
+                  'account' => '$account [<a href="?action=register_candidate&domain=$domain&account=$account">Register Candidate</a>] [<a href="?action=deactivate_member&domain=$domain&account=$account">Deactivate</a>]',
+                );
+                if ($is_admin) {
+                  $controls['account'] .= ' [<a href="?action=disable_member&domain=$domain&account=$account">Disable</a>]';
+                }
+                $Member->print('table',$controls);
+              }
+              ?>
+              </table>
+              <?php
             }
-            foreach ($members as $Member) {
-              $controls = array(
-                'account' => '$account [<a href="?action=register_candidate&domain=$domain&account=$account">Register Candidate</a>]',
-              );
-              $Member->print('table',$controls);
-            }
-            ?>
-            </table>
-            <h2>Pending Members:</h2>
-            <table class="table table-striped table-bordered">
-            <?php
+
             $pendingmembers = $Group->getPendingMembers();
             if (count($pendingmembers)) {
+              ?>
+              <h2>Pending Members:</h2>
+              <table id="pending_members" class="table table-striped table-bordered">
+              <?php
               $pendingmembers[0]->print('table_header');
-            }
-            foreach ($pendingmembers as $PendingMember) {
-              // TODO: change this to be a javascript form POST, not a get. Protect against CSRF.
-              $controls = array(
-                'account' => '$account [<a href="?action=approve_pending_member&domain=$domain&account=$account">Approve</a>]',
-                'application_date' => '<a href="' . $explorer_url . '/transaction/$membership_payment_transaction_id">$application_date</a>'
-              );
-              $PendingMember->print('table',$controls);
+              foreach ($pendingmembers as $PendingMember) {
+                // TODO: change this to be a javascript form POST, not a get. Protect against CSRF.
+                $controls = array(
+                  'account' => '$account [<a href="?action=approve_pending_member&domain=$domain&account=$account">Approve</a>]',
+                  'application_date' => '<a href="' . $explorer_url . '/transaction/$membership_payment_transaction_id">$application_date</a>'
+                );
+                $PendingMember->print('table',$controls);
+              }
+              ?>
+              </table>
+              <?php
             }
             ?>
-            </table>
+
             <h1>Apply</h1>
             <form method="POST" id="apply_to_group">
               <input type="hidden" name="action" value="apply_to_group">
@@ -363,7 +499,7 @@ $explorer_url = "https://fio-test.bloks.io/";
             if (count($groups)) {
               ?>
               <h1>Groups:</h1>
-              <table class="table table-striped table-bordered">
+              <table id="groups" class="table table-striped table-bordered">
               <?php
               $groups[0]->print('table_header');
               foreach ($groups as $Group) {

@@ -10,7 +10,7 @@
       "id": "fdfc4cec-8be4-4892-b65a-1f7d5e0193e4",
       "comment": "",
       "command": "open",
-      "target": "/?action=clear_all_data&domain=testing",
+      "target": "/?action=testing_clear_all_data&domain=testing",
       "targets": [],
       "value": ""
     }, {
@@ -547,7 +547,7 @@
       "id": "9faa19b7-5a9c-46c1-80fc-42b06cedac7e",
       "comment": "",
       "command": "click",
-      "target": "css=tr:nth-child(3) > td:nth-child(2) > .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Approve')])[2]",
       "targets": [
         ["css=tr:nth-child(3) > td:nth-child(2) > .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Approve')])[2]", "xpath:link"],
@@ -559,7 +559,7 @@
       "id": "d2548c07-f7cb-4a6f-8f28-ee7c8183462c",
       "comment": "",
       "command": "click",
-      "target": "css=.table:nth-child(11) tr:nth-child(3) > td:nth-child(2) > .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Approve')])[2]",
       "targets": [
         ["css=.table:nth-child(11) tr:nth-child(3) > td:nth-child(2) > .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Approve')])[2]", "xpath:link"],
@@ -571,7 +571,7 @@
       "id": "239c98de-cc13-4f73-93f3-a1f001bf775f",
       "comment": "",
       "command": "click",
-      "target": "css=.table:nth-child(11) tr:nth-child(3) > td:nth-child(2) > .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Approve')])[2]",
       "targets": [
         ["css=.table:nth-child(11) tr:nth-child(3) > td:nth-child(2) > .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Approve')])[2]", "xpath:link"],
@@ -583,7 +583,7 @@
       "id": "adfeee7f-fd54-429e-81f8-875ac03f552f",
       "comment": "",
       "command": "click",
-      "target": "css=.table:nth-child(11) tr:nth-child(3) > td:nth-child(2) > .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Approve')])[2]",
       "targets": [
         ["css=.table:nth-child(11) tr:nth-child(3) > td:nth-child(2) > .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Approve')])[2]", "xpath:link"],
@@ -623,7 +623,7 @@
       "id": "8fca4377-68d1-427f-bda0-1e30c34596aa",
       "comment": "",
       "command": "click",
-      "target": "css=tr:nth-child(4) .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Register Candidate')])[3]",
       "targets": [
         ["css=tr:nth-child(4) .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Register Candidate')])[3]", "xpath:link"],
@@ -635,7 +635,7 @@
       "id": "3b69e401-f24f-400f-841c-ddcbd5502987",
       "comment": "",
       "command": "click",
-      "target": "css=tr:nth-child(5) .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Register Candidate')])[4]",
       "targets": [
         ["css=tr:nth-child(5) .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Register Candidate')])[4]", "xpath:link"],
@@ -647,7 +647,7 @@
       "id": "e4cca697-eb8f-400d-b347-52428edb5302",
       "comment": "",
       "command": "click",
-      "target": "css=tr:nth-child(6) .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Register Candidate')])[5]",
       "targets": [
         ["css=tr:nth-child(6) .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Register Candidate')])[5]", "xpath:link"],
@@ -659,7 +659,7 @@
       "id": "a9fca4b3-81fd-4b5b-8b73-8908dff93efd",
       "comment": "",
       "command": "click",
-      "target": "css=tr:nth-child(7) .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Register Candidate')])[6]",
       "targets": [
         ["css=tr:nth-child(7) .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Register Candidate')])[6]", "xpath:link"],
@@ -781,7 +781,7 @@
       "id": "9aee4f27-1631-4a3d-a7a2-c20d1070e54d",
       "comment": "",
       "command": "click",
-      "target": "css=tr:nth-child(3) > td:nth-child(1) > .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Vote')])[3]",
       "targets": [
         ["css=tr:nth-child(3) > td:nth-child(1) > .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Vote')])[3]", "xpath:link"],
@@ -793,7 +793,7 @@
       "id": "66175d4a-481a-44c6-b3b6-d52a0228ef93",
       "comment": "",
       "command": "click",
-      "target": "css=tr:nth-child(4) > td:nth-child(1) > .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Vote')])[4]",
       "targets": [
         ["css=tr:nth-child(4) > td:nth-child(1) > .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Vote')])[4]", "xpath:link"],
@@ -805,7 +805,7 @@
       "id": "c067b0ee-0540-4f98-84d4-271049dd40d2",
       "comment": "",
       "command": "click",
-      "target": "css=tr:nth-child(5) > td:nth-child(1) > .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Vote')])[5]",
       "targets": [
         ["css=tr:nth-child(5) > td:nth-child(1) > .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Vote')])[5]", "xpath:link"],
@@ -817,7 +817,7 @@
       "id": "6a4a8308-0180-4d36-908c-fdde02142692",
       "comment": "",
       "command": "click",
-      "target": "css=tr:nth-child(6) > td:nth-child(1) > .keychainify-checked",
+      "target": "xpath=(//a[contains(text(),'Vote')])[6]",
       "targets": [
         ["css=tr:nth-child(6) > td:nth-child(1) > .keychainify-checked", "css:finder"],
         ["xpath=(//a[contains(text(),'Vote')])[6]", "xpath:link"],
@@ -885,6 +885,63 @@
         ["xpath=//a[contains(@href, '?action=record_vote_results&domain=testing')]", "xpath:href"],
         ["xpath=//a[2]", "xpath:position"],
         ["xpath=//a[contains(.,'Record Vote Results')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "c676a130-206b-4a78-a050-ca790bc02f23",
+      "comment": "",
+      "command": "click",
+      "target": "linkText=TESTING: Make Admin",
+      "targets": [
+        ["linkText=TESTING: Make Admin", "linkText"],
+        ["css=.keychainify-checked:nth-child(5)", "css:finder"],
+        ["xpath=//a[contains(text(),'TESTING: Make Admin')]", "xpath:link"],
+        ["xpath=//a[contains(@href, '?action=testing_make_admin&domain=testing')]", "xpath:href"],
+        ["xpath=//a[3]", "xpath:position"],
+        ["xpath=//a[contains(.,'TESTING: Make Admin')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "8a2bbff7-d46a-4492-951b-653604bafa64",
+      "comment": "",
+      "command": "click",
+      "target": "xpath=(//a[contains(text(),'Disable')])[6]",
+      "targets": [
+        ["css=tr:nth-child(7) .keychainify-checked:nth-child(3)", "css:finder"],
+        ["xpath=(//a[contains(text(),'Disable')])[6]", "xpath:link"],
+        ["xpath=//table[@id='members']/tbody/tr[7]/td[2]/a[3]", "xpath:idRelative"],
+        ["xpath=//a[contains(@href, '?action=disable_member&domain=testing&account=member4account')]", "xpath:href"],
+        ["xpath=//tr[7]/td[2]/a[3]", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "715df973-17b0-4957-bc55-3b9d7b6e18e3",
+      "comment": "",
+      "command": "click",
+      "target": "linkText=Enable",
+      "targets": [
+        ["linkText=Enable", "linkText"],
+        ["css=#disabled_members .keychainify-checked", "css:finder"],
+        ["xpath=//a[contains(text(),'Enable')]", "xpath:link"],
+        ["xpath=//table[@id='disabled_members']/tbody/tr[2]/td[2]/a", "xpath:idRelative"],
+        ["xpath=//a[contains(@href, '?action=enable_member&domain=testing&account=member4account')]", "xpath:href"],
+        ["xpath=//table[3]/tbody/tr[2]/td[2]/a", "xpath:position"],
+        ["xpath=//a[contains(.,'Enable')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "adc941ea-87ea-47a4-908b-3ce341bbc80b",
+      "comment": "",
+      "command": "click",
+      "target": "linkText=Activate",
+      "targets": [
+        ["linkText=Activate", "linkText"],
+        ["css=#inactive_members .keychainify-checked:nth-child(1)", "css:finder"],
+        ["xpath=//a[contains(text(),'Activate')]", "xpath:link"],
+        ["xpath=//table[@id='inactive_members']/tbody/tr[2]/td[2]/a", "xpath:idRelative"],
+        ["xpath=//a[contains(@href, '?action=activate_member&domain=testing&account=member4account')]", "xpath:href"],
+        ["xpath=//td[2]/a", "xpath:position"],
+        ["xpath=//a[contains(.,'Activate')]", "xpath:innerText"]
       ],
       "value": ""
     }]

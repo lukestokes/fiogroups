@@ -193,6 +193,7 @@ final class MemberTest extends TestCase
 <th>Date Added</th>
 <th>Last Verified Date</th>
 <th>Is Admin</th>
+<th>Is Disabled</th>
 <th>Is Active</th>
 <th> Id</th>
 </tr>
@@ -203,6 +204,7 @@ final class MemberTest extends TestCase
 <td>' . $date_added . '</td>
 <td>' . $last_verified_date . '</td>
 <td>false</td>
+<td>false</td>
 <td>true</td>
 <td>2</td>
 </tr>
@@ -210,8 +212,121 @@ final class MemberTest extends TestCase
         $this->assertEquals($expected,$output);
     }
 
-    public function testCanRemoveMember(): void
+    public function testCanNotRemoveAnActiveMember(): void
     {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("wntoh3fogzcj is still active within testing. Only deactivated members can be removed.");
+        $this->group->removeMember($this->account);
+    }
+
+    public function testCanNotActivateAnActiveMember(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("wntoh3fogzcj is already active.");
+        $this->group->activate($this->account);
+    }
+
+    public function testCanNotDeactivateAnAdmin(): void
+    {
+        $Member = $this->factory->new("Member");
+        $Member->_id = 2;
+        $Member->read();
+        $Member->is_admin = true;
+        $Member->save();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("wntoh3fogzcj is an admin. Please hold a new election first.");
+        $this->group->deactivate($this->account);
+    }
+
+    public function testCanNotDisableAnAdmin(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("wntoh3fogzcj is an admin. Please hold a new election first.");
+        $this->group->disable($this->account);
+    }
+
+    public function testCanDeactivateAMember(): void
+    {
+        $Member = $this->factory->new("Member");
+        $Member->_id = 2;
+        $Member->read();
+        $Member->is_admin = false;
+        $Member->save();
+        $this->group->deactivate($this->account);
+        $Member = $this->factory->new("Member");
+        $Member->_id = 2;
+        $Member->read();
+        $this->assertFalse($Member->is_active);
+    }
+
+    public function testCanNotDeactivateAnInactiveMember(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("wntoh3fogzcj is not active.");
+        $this->group->deactivate($this->account);
+    }
+
+    public function testCanActivateMember(): void
+    {
+        $this->group->activate($this->account);
+        $Member = $this->factory->new("Member");
+        $Member->_id = 2;
+        $Member->read();
+        $this->assertTrue($Member->is_active);
+    }
+
+    public function testCanNotEnableAMemberWhoIsNotDisabled(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("wntoh3fogzcj is not disabled.");
+        $this->group->enable($this->account);
+    }
+
+    public function testCanDisableMember(): void
+    {
+        $this->group->disable($this->account);
+        $Member = $this->factory->new("Member");
+        $Member->_id = 2;
+        $Member->read();
+        $this->assertFalse($Member->is_active);
+        $this->assertTrue($Member->is_disabled);
+    }
+
+    public function testCanNotActivateADisabledMember(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("wntoh3fogzcj is disabled. Only the admins can enable and active the account.");
+        $this->group->activate($this->account);
+    }
+
+    public function testCanNotDisableADisabledMember(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("wntoh3fogzcj is already disabled");
+        $this->group->disable($this->account);
+    }
+
+    public function testCanEnableDisableMember(): void
+    {
+        $this->group->enable($this->account);
+        $Member = $this->factory->new("Member");
+        $Member->_id = 2;
+        $Member->read();
+        $this->assertFalse($Member->is_disabled);
+        $this->assertFalse($Member->is_active);
+        $Member->is_disabled = true;
+        $Member->is_active = false;
+        $Member->save();
+    }
+
+    public function testCanRemoveDisabledMember(): void
+    {
+        $Member = $this->factory->new("Member");
+        $Member->_id = 2;
+        $found = $Member->read();
+        $this->assertTrue($found);
+        $Member->is_active = false;
+        $Member->save();
         $this->group->removeMember($this->account);
         $Member = $this->factory->new("Member");
         $Member->_id = 2;

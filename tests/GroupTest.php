@@ -145,6 +145,62 @@ final class GroupTest extends TestCase
         $this->assertEquals("test",$admins[1]->member_name);
     }
 
+    public function testCanGetInactiveMembers(): void
+    {
+        $Group = $this->factory->new("Group");
+        $Group->_id = 1;
+        $Group->read();
+
+        $Member3 = $this->factory->new("Member");
+        $Member3->_id = 3;
+        $Member3->read();
+        $Member3->is_active = false;
+        $Member3->save();
+
+        $Member4 = $this->factory->new("Member");
+        $Member4->_id = 4;
+        $Member4->read();
+        $Member4->is_active = false;
+        $Member4->save();
+
+        $inactive_members = $Group->getInactiveMembers();
+        $this->assertCount(2,$inactive_members);
+        $this->assertEquals("test1",$inactive_members[1]->member_name);
+
+        $Member3->is_active = true;
+        $Member3->save();
+        $Member4->is_active = true;
+        $Member4->save();
+    }
+
+    public function testCanGetDisabledMembers(): void
+    {
+        $Group = $this->factory->new("Group");
+        $Group->_id = 1;
+        $Group->read();
+
+        $Member3 = $this->factory->new("Member");
+        $Member3->_id = 3;
+        $Member3->read();
+        $Member3->is_disabled = true;
+        $Member3->save();
+
+        $Member4 = $this->factory->new("Member");
+        $Member4->_id = 4;
+        $Member4->read();
+        $Member4->is_disabled = true;
+        $Member4->save();
+
+        $disabled_members = $Group->getDisabledMembers();
+        $this->assertCount(2,$disabled_members);
+        $this->assertEquals("test1",$disabled_members[1]->member_name);
+
+        $Member3->is_disabled = false;
+        $Member3->save();
+        $Member4->is_disabled = false;
+        $Member4->save();
+    }
+
     public function testCanGetAdminCandidates(): void
     {
         $Group = $this->factory->new("Group");

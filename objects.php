@@ -255,6 +255,20 @@ class Group extends BaseObject {
         return $members;
     }
 
+    function getInactiveMembers() {
+        $Member = $this->factory->new("Member");
+        $criteria = [["domain","=",$this->domain], ["is_active", "=", false]];
+        $members = $Member->readAll($criteria);
+        return $members;
+    }
+
+    function getDisabledMembers() {
+        $Member = $this->factory->new("Member");
+        $criteria = [["domain","=",$this->domain], ["is_disabled", "=", true]];
+        $members = $Member->readAll($criteria);
+        return $members;
+    }
+
     function getAdmins() {
         $Member = $this->factory->new("Member");
         $criteria = [["domain","=",$this->domain], ["is_active", "=", true], ["is_admin","=",true]];
@@ -344,6 +358,76 @@ class Group extends BaseObject {
         return $Member;
     }
 
+    function deactivate($account) {
+        $Member = $this->factory->new("Member");
+        $criteria = [["domain","=",$this->domain],["account","=",$account]];
+        $found = $Member->read($criteria);
+        if (!$found) {
+            throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
+        }
+        if (!$Member->is_active) {
+            throw new Exception($account . " is not active.", 1);
+        }
+        if ($Member->is_admin) {
+            throw new Exception($account . " is an admin. Please hold a new election first.", 1);
+        }
+        $Member->is_active = false;
+        $Member->save();
+        return $Member;
+    }
+
+    function activate($account) {
+        $Member = $this->factory->new("Member");
+        $criteria = [["domain","=",$this->domain],["account","=",$account]];
+        $found = $Member->read($criteria);
+        if (!$found) {
+            throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
+        }
+        if ($Member->is_disabled) {
+            throw new Exception($account . " is disabled. Only the admins can enable and active the account.", 1);
+        }
+        if ($Member->is_active) {
+            throw new Exception($account . " is already active.", 1);
+        }
+        $Member->is_active = true;
+        $Member->save();
+        return $Member;
+    }
+
+    function disable($account) {
+        $Member = $this->factory->new("Member");
+        $criteria = [["domain","=",$this->domain],["account","=",$account]];
+        $found = $Member->read($criteria);
+        if (!$found) {
+            throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
+        }
+        if ($Member->is_disabled) {
+            throw new Exception($account . " is already disabled.", 1);
+        }
+        if ($Member->is_admin) {
+            throw new Exception($account . " is an admin. Please hold a new election first.", 1);
+        }
+        $Member->is_disabled = true;
+        $Member->is_active = false;
+        $Member->save();
+        return $Member;
+    }
+
+    function enable($account) {
+        $Member = $this->factory->new("Member");
+        $criteria = [["domain","=",$this->domain],["account","=",$account]];
+        $found = $Member->read($criteria);
+        if (!$found) {
+            throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
+        }
+        if (!$Member->is_disabled) {
+            throw new Exception($account . " is not disabled.", 1);
+        }
+        $Member->is_disabled = false;
+        $Member->save();
+        return $Member;
+    }
+
     function updateBio($account, $bio) {
         $Member = $this->factory->new("Member");
         $criteria = [["domain","=",$this->domain],["account","=",$account]];
@@ -361,6 +445,9 @@ class Group extends BaseObject {
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
+        if ($Member->is_active) {
+            throw new Exception($account . " is still active within " . $this->domain . ". Only deactivated members can be removed.", 1);
+        }
         $Member->delete();
     }
     function verifyMember($account) {
@@ -370,8 +457,10 @@ class Group extends BaseObject {
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
+        if (!$Member->is_active) {
+            throw new Exception($account . " is not active within " . $this->domain . ". Only activate members can be verfied.", 1);
+        }
         $Member->last_verified_date = time();
-        $Member->is_active = true;
         $Member->save();
     }
     function registerCandidate($account) {
@@ -500,6 +589,7 @@ class Member extends BaseObject {
      * Set to true for groups creator or if elected as an admin of the group)
      */
     public $is_admin;
+    public $is_disabled;
     /**
      * NEW
      */
