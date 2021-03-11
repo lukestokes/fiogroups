@@ -852,13 +852,24 @@
     }, {
       "id": "36963ea4-fefa-4557-a596-406cf0d5a71a",
       "comment": "",
-      "command": "assertText",
+      "command": "storeText",
       "target": "css=.alert",
-      "targets": [
-        ["css=.alert", "css:finder"],
-        ["xpath=//div/div/div", "xpath:position"]
-      ],
-      "value": "This election is not over. Please wait until after 2021-04-05 00:00:00"
+      "targets": [],
+      "value": "test"
+    }, {
+      "id": "2e723f0a-0bcf-4c2e-bdf5-44ac66d6d54b",
+      "comment": "",
+      "command": "executeScript",
+      "target": "if (${test}.startsWith('This election is not over. Please wait until after')) { return true; } else { return false };",
+      "targets": [],
+      "value": "x"
+    }, {
+      "id": "9d97a0a1-8af3-48ab-9c01-1bd5eaac9b79",
+      "comment": "",
+      "command": "assert",
+      "target": "x",
+      "targets": [],
+      "value": "true"
     }, {
       "id": "18c205e9-590c-4b76-8a79-38e5d779d3af",
       "comment": "",

@@ -1,8 +1,13 @@
 <?php
 require_once __DIR__ . '/vendor/autoload.php';
-$client = new GuzzleHttp\Client(['base_uri' => 'http://fio.greymass.com']);
+//$chainId = '21dcae42c0182200e93f954a074011f9048a7624c6fe81d3c9541a614a88bd1c';
+//$nodeUrl = 'https://fio.greymass.com';
+$chainId = 'b20901380af44ef59c5918439a1f9a41d83669020319a80574b804a5f95cbd7e';
+$nodeUrl = 'https://testnet.fioprotocol.io';
+//$client = new GuzzleHttp\Client(['base_uri' => 'http://fio.greymass.com']);
+$client = new GuzzleHttp\Client(['base_uri' => $nodeUrl]);
 include "header.php";
-$explorer_url = "https://fio.bloks.io/";
+//$explorer_url = "https://fio.bloks.io/";
 $explorer_url = "https://fio-test.bloks.io/";
 ?>
 <!doctype html>
@@ -40,237 +45,12 @@ $explorer_url = "https://fio-test.bloks.io/";
   <body onload="restoreSession()">
     <div class="container-fluid">
       <div class="row m-3">
-
-        <?php
-          $Factory = new Factory();
-          $action = "";
-          $notice = "";
-          $domain = "";
-          $is_admin = false;
-
-          // for testing
-          $logged_in_user = "loggedinuser";
-
-          if (isset($_REQUEST["action"])) {
-            $action = strip_tags($_REQUEST["action"]);
-          }
-          if (isset($_REQUEST["domain"])) {
-            $domain = strip_tags($_REQUEST["domain"]);
-            $Group = $Factory->new("Group");
-            $Group->read(['domain','=',$domain]);
+          <?php
+          if (isset($_SESSION["username"])) {
+            print "<h3>Authenticated: " . $_SESSION["username"] . " (" . $_SESSION['fio_balance'] . " FIO)</h3>";
+            print '<p>[<a href="?logout">Logout</a>]</p>';
           }
 
-          // for testing
-          if ($action == "testing_change_vote_date") {
-            try {
-              $Election = $Group->getCurrentElection();
-              $Election->vote_date = time() - 1000;
-              $Election->save();
-              $notice = "TESTING: Election vote date set in the past.";
-            } catch (Exception $e) { }
-          }
-          // for testing
-          if ($action == "testing_clear_all_data") {
-            exec("rm -rf \"" . __DIR__ . "/data\"");
-            exec("mkdir \"" . __DIR__ . "/data\"");
-          }
-          // for testing
-          if ($action == "testing_make_admin") {
-            $Member = $Factory->new("Member");
-            $criteria = [["domain","=",$domain],["account","=",$logged_in_user]];
-            try {
-              $found = $Member->read($criteria);
-              if ($found) {
-                $Member->is_admin = true;
-                $Member->save();
-                $is_admin = true;
-              }
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-          // for testing
-          if ($action == "testing_unmake_admin") {
-            $Member = $Factory->new("Member");
-            $criteria = [["domain","=",$domain],["account","=",$logged_in_user]];
-            try {
-              $found = $Member->read($criteria);
-              if ($found) {
-                $Member->is_admin = false;
-                $Member->save();
-                $is_admin = false;
-              }
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($domain != "") {
-            $Member = $Factory->new("Member");
-            $criteria = [["domain","=",$domain],["account","=",$logged_in_user]];
-            $found = $Member->read($criteria);
-            if ($found) {
-                $is_admin = $Member->is_admin;
-            }
-          }
-
-          if ($action == "create_group") {
-            $Group = $Factory->new("Group");
-            try {
-              $Group->create(
-                $logged_in_user,
-                strip_tags($_POST["creator_member_name"]),
-                strip_tags($_POST["group_fio_public_key"]),
-                strip_tags($_POST["group_account"]),
-                strip_tags($_POST["domain"]),
-                strip_tags($_POST["member_application_fee"])
-              );
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($action == "apply_to_group") {
-            try {
-              $Group->apply(
-                strip_tags($_POST["account"]),
-                strip_tags($_POST["member_name_requested"]),
-                strip_tags($_POST["bio"]),
-                strip_tags($_POST["membership_payment_transaction_id"])
-              );
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($action == "approve_pending_member") {
-            try {
-              $Group->approve(
-                strip_tags($_REQUEST["account"])
-              );
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($action == "create_election") {
-            try {
-              $vote_date = strtotime(strip_tags($_REQUEST["vote_date"]));
-              $Group->createElection(
-                strip_tags($_REQUEST["number_of_admins"]),
-                strip_tags($_REQUEST["vote_threshold"]),
-                strip_tags($_REQUEST["votes_per_member"]),
-                $vote_date,
-              );
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($action == "register_candidate") {
-            try {
-              $Group->registerCandidate(
-                strip_tags($_REQUEST["account"])
-              );
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($action == "disable_member") {
-            try {
-              $Group->disable(
-                strip_tags($_REQUEST["account"])
-              );
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($action == "enable_member") {
-            try {
-              $Group->enable(
-                strip_tags($_REQUEST["account"])
-              );
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($action == "deactivate_member") {
-            try {
-              $Group->deactivate(
-                strip_tags($_REQUEST["account"])
-              );
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($action == "activate_member") {
-            try {
-              $Group->activate(
-                strip_tags($_REQUEST["account"])
-              );
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-
-          if ($action == "vote") {
-            try {
-              // count votes already cast and set rank that way?
-              $rank = 1;
-              // count tokens or something?
-              $vote_weight = 1;
-              $Group->vote(
-                strip_tags($logged_in_user),
-                strip_tags($_REQUEST["candidate_account"]),
-                $rank,
-                $vote_weight
-              );
-              $action = "show_votes";
-              $notice = "Vote cast for " . strip_tags($_REQUEST["candidate_account"]) . " by " . $logged_in_user . ".";
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-          if ($action == "remove_vote") {
-            try {
-              $Group->removeVote(
-                strip_tags($logged_in_user),
-                strip_tags($_REQUEST["candidate_account"]),
-              );
-              $action = "show_votes";
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($action == "record_vote_results") {
-            try {
-              $Group->recordVoteResults();
-            } catch (Exception $e) {
-              $notice = $e->getMessage();
-            }
-          }
-
-          if ($notice != "") {
-            ?>
-              <div class="alert alert-info" role="alert">
-                <?php print $notice; ?>
-              </div>
-            <?php
-          }
-
-          if ($domain != "") {
-            $Group = $Factory->new("Group");
-            $found = $Group->read(['domain','=',$domain]);
-            if (!$found) {
-              $domain = "";
-            }
-          }
           if ($domain != "") {
             ?>
             <h1><?php print $domain; ?></h1>
@@ -441,6 +221,7 @@ $explorer_url = "https://fio-test.bloks.io/";
               foreach ($members as $Member) {
                 $controls = array(
                   'account' => '$account [<a href="?action=register_candidate&domain=$domain&account=$account">Register Candidate</a>] [<a href="?action=deactivate_member&domain=$domain&account=$account">Deactivate</a>]',
+                  'member_name' => '<a href="' . $explorer_url . 'address/$member_name@$domain">$member_name</a>',
                 );
                 if ($is_admin) {
                   $controls['account'] .= ' [<a href="?action=disable_member&domain=$domain&account=$account">Disable</a>]';
@@ -463,7 +244,7 @@ $explorer_url = "https://fio-test.bloks.io/";
                 // TODO: change this to be a javascript form POST, not a get. Protect against CSRF.
                 $controls = array(
                   'account' => '$account [<a href="?action=approve_pending_member&domain=$domain&account=$account">Approve</a>]',
-                  'application_date' => '<a href="' . $explorer_url . '/transaction/$membership_payment_transaction_id">$application_date</a>'
+                  'application_date' => '<a href="' . $explorer_url . 'transaction/$membership_payment_transaction_id">$application_date</a>'
                 );
                 $PendingMember->print('table',$controls);
               }
@@ -509,30 +290,53 @@ $explorer_url = "https://fio-test.bloks.io/";
               ?>
               </table>
               <?php
+              print '<p>[<a href="?action=show_create_group">Create Group</a>]</p>';
             }
+            if (count($groups) == 0 || $action == "show_create_group") {
             ?>
-            <h1>Create Group</h1>
-            <form method="POST" id="create_group">
-              <input type="hidden" name="action" value="create_group">
-              <div class="col-sm-2">
-                  <div class="form-group">
-                      <label>Member Name</label>
-                      <input type="text" name="creator_member_name" id="creator_member_name" class="form-control" value="">
-                  </div>
-              </div>
+              <h1>Create Group</h1>
+              <ol>
+                <li>Generate a new FIO public key.</li>
+                <li>Send FIO to the new account.</li>
+                <li>The FIO Groups will then register the FIO Domain you want and assign you as the first admin.</li>
+              </ol>
+              <p>
+                Create Domain Fee: <span id="create_domain_fee"><?php print $Util->SUFToFIO($Util->getRegisterDomainFee()); ?> FIO</span><br />
+                Transfer Token Fee: <span id="transfer_tokens_fee"><?php print $Util->SUFToFIO($Util->getTransferFee()); ?> FIO</span><br />
+              </p>
+              <form method="POST" id="create_group">
+                <input type="hidden" name="action" value="create_group">
+                <div class="col-sm-2">
+                    <div class="form-group">
+                        <label>Member Name</label>
+                        <input type="text" name="creator_member_name" id="creator_member_name" class="form-control" value="">
+                    </div>
+                </div>
+                <?php
+                $Group = $Factory->new("Group");
+                print $Group->formHTML();
+                ?>
+                <div class="form-group">
+                  <button type="button" id="create_group_button" class="btn btn-primary">Create Group</button>
+                </div>
+              </form>
               <?php
-              $Group = $Factory->new("Group");
-              print $Group->formHTML();
-              ?>
-              <div class="form-group">
-                <button type="submit" class="btn btn-primary">Create Group</button>
-              </div>
-            </form>
-            <?php
+            }
           } else {
             print '<p>[<a href="?action=home">Home</a>]</p>';
           }
           ?>
+
+          <form id="login" method="POST">
+            <input id="identity_proof" name="identity_proof" value="" type="hidden">
+            <input id="actor" name="actor" value="" type="hidden">
+            <input id="action" name="action" value="login" type="hidden">
+          </form>
+
+          <div class="form-group">
+            <button type="submit" class="btn btn-primary" onclick="login()">Login</button>
+          </div>
+
 
       </div>
     </div>
@@ -540,6 +344,7 @@ $explorer_url = "https://fio-test.bloks.io/";
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
     <script>
+    var nodeUrl = '<?php print $nodeUrl; ?>';
     <?php if (isset($_GET{'login'})) { ?>
       $(function() {
         login();
@@ -553,9 +358,10 @@ $explorer_url = "https://fio-test.bloks.io/";
     </script>
     <script src="https://unpkg.com/anchor-link@3"></script>
     <script src="https://unpkg.com/anchor-link-browser-transport@3"></script>
-    <script src="js/script.js"></script>
+    <script src="js/long.js"></script>
     <!-- Bootstrap Date-Picker Plugin -->
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.4.1/js/bootstrap-datepicker.min.js"></script>
+    <script src="js/script.js"></script>
     <script>
     // app identifier, should be set to the eosio contract account if applicable
     const identifier = 'fiogroups'
@@ -567,8 +373,8 @@ $explorer_url = "https://fio-test.bloks.io/";
           transport,
           chains: [
               {
-                  chainId: '21dcae42c0182200e93f954a074011f9048a7624c6fe81d3c9541a614a88bd1c',
-                  nodeUrl: 'https://fio.greymass.com',
+                  chainId: '<?php print $chainId; ?>',
+                  nodeUrl: '<?php print $nodeUrl; ?>',
               }
           ],
         }

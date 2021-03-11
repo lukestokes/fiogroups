@@ -1,0 +1,8 @@
+owner creates a group
+group needs it's own public/private key pair and account
+owner should be the inital admin and controller of the group
+
+need fio.js to:
+1) generate a key pair
+2) create group
+3) change permissions on the group to the account owner

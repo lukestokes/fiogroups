@@ -240,7 +240,7 @@ final class GroupTest extends TestCase
 <td>FIO7EwPGwmYGZF6fkvBNzbzYegj2q2dAZsp292P9oxkK8yjso5uDq</td>
 <td>pmz3qk1c4jqj</td>
 <td>10000000000</td>
-<td></td>
+<td>1</td>
 <td>' . date("Y-m-d H:i:s",$date_created) . '</td>
 <td>1</td>
 </tr>

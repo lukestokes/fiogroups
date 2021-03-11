@@ -2,40 +2,141 @@
 
 date_default_timezone_set('America/Puerto_Rico');
 
-function br() { return (PHP_SAPI === 'cli' ? "\n" : "<br />"); }
+function br()
+{return (PHP_SAPI === 'cli' ? "\n" : "<br />");}
 
-class Factory {
+class Util
+{
+    public $client;
+    public $fio_public_key;
+    public $actor;
+    public $balance;
+    public $transfer_fee;
+    public $domain_fee;
+
+    function __construct($client) {
+        $this->client = $client;
+    }
+
+    function getFIOPublicKey() {
+        if ($this->fio_public_key) {
+            return $this->fio_public_key;
+        }
+        $params = array(
+            "account_name" => $this->actor
+        );
+        try {
+            $get_account_response = $this->client->post('/v1/chain/get_account', [
+                GuzzleHttp\RequestOptions::JSON => $params
+            ]);
+            $response = json_decode($get_account_response->getBody());
+            //var_dump($response);
+            foreach ($response->permissions as $key => $permission) {
+              //var_dump($permission);
+              if ($permission->perm_name == "active") {
+                  if (isset($permission->required_auth->keys[0])) {
+                      $this->fio_public_key = $permission->required_auth->keys[0]->key;
+                  }
+              }
+            }
+        } catch(\Exception $e) {
+            //print $e->getMessage() . "\n";
+        }
+        return $this->fio_public_key;
+    }
+
+    function getFIOBalance() {
+        if ($this->balance) {
+            return $this->balance;
+        }
+        $this->getFIOPublicKey();
+        $params = ["fio_public_key" => $this->fio_public_key];
+        $get_fio_balance_response = $this->client->post('/v1/chain/get_fio_balance', [
+            GuzzleHttp\RequestOptions::JSON => $params
+        ]);
+        $fio_balance_results = json_decode($get_fio_balance_response->getBody(), true);
+        $balance = $fio_balance_results['balance'];
+        $balance = $balance / 1000000000;
+        $this->balance = $balance;
+        return $this->balance;
+    }
+
+    function getFee($endpoint,$fio_address) {
+        $fee = 0;
+        try {
+            $params = array(
+                "end_point" => $endpoint,
+                "fio_address" => $fio_address
+            );
+            $response = $this->client->post('/v1/chain/get_fee', [
+                GuzzleHttp\RequestOptions::JSON => $params
+            ]);
+            $result = json_decode($response->getBody());
+            $fee = $result->fee;
+        } catch(\Exception $e) { }
+        return $fee + ($fee * .1); // add 10% extra in case something changes between now and when it is executed.
+    }
+
+    function getTransferFee() {
+        if ($this->transfer_fee) {
+            return $this->transfer_fee;
+        }
+        $this->transfer_fee = $this->getFee("transfer_tokens_pub_key","faucet@stokes");
+        return $this->transfer_fee;
+    }
+    function getRegisterDomainFee() {
+        if ($this->domain_fee) {
+            return $this->domain_fee;
+        }
+        $this->domain_fee = $this->getFee("register_fio_domain","faucet@stokes");
+        return $this->domain_fee;
+    }
+    function FIOToSUF($amount) {
+      return ($amount * 1000000000);
+    }
+    function SUFToFIO($amount) {
+      return ($amount / 1000000000);
+    }
+
+}
+
+class Factory
+{
     public $dataDir;
 
-    function __construct($dataDir = null) {
+    public function __construct($dataDir = null)
+    {
         $this->dataDir = __DIR__ . "/data";
         if ($dataDir) {
             $this->dataDir = $dataDir;
         }
     }
 
-    function new($object_type) {
+    function new ($object_type) {
         return new $object_type($object_type, $this);
     }
 }
 
-class BaseObject {
+class BaseObject
+{
     public $_id;
 
-    public $internal_fields = array('non_printable_fields','internal_fields','dataDir','dataStore','factory');
+    public $internal_fields      = array('non_printable_fields', 'internal_fields', 'dataDir', 'dataStore', 'factory');
     public $non_printable_fields = array();
     public $dataDir;
     public $dataStore;
     public $factory;
 
-    function __construct($object_type, $factory) {
-        $this->dataDir = $factory->dataDir;
-        $this->dataStore = new \SleekDB\Store($object_type, $this->dataDir);
-        $this->factory = $factory;
+    public function __construct($object_type, $factory)
+    {
+        $this->dataDir              = $factory->dataDir;
+        $this->dataStore            = new \SleekDB\Store($object_type, $this->dataDir);
+        $this->factory              = $factory;
         $this->non_printable_fields = array_merge($this->internal_fields, $this->non_printable_fields);
     }
 
-    function getData() {
+    public function getData()
+    {
         $object_data = get_object_vars($this);
         foreach ($this->internal_fields as $internal_field) {
             unset($object_data[$internal_field]);
@@ -43,7 +144,8 @@ class BaseObject {
         return $object_data;
     }
 
-    function getPrintableFields() {
+    public function getPrintableFields()
+    {
         $object_data = get_object_vars($this);
         foreach ($this->non_printable_fields as $non_printable_field) {
             unset($object_data[$non_printable_field]);
@@ -51,24 +153,27 @@ class BaseObject {
         return $object_data;
     }
 
-    function save() {
+    public function save()
+    {
         $object_data = $this->getData();
         if ($object_data["_id"]) {
             $this->dataStore->update($object_data);
         } else {
             unset($object_data["_id"]);
             $new_object_data = $this->dataStore->insert($object_data);
-            $this->_id = $new_object_data["_id"];
+            $this->_id       = $new_object_data["_id"];
         }
     }
 
-    function delete() {
+    public function delete()
+    {
         if ($this->_id) {
             $this->dataStore->deleteById($this->_id);
         }
     }
 
-    function loadData($data) {
+    public function loadData($data)
+    {
         $object_data = $this->getData();
         foreach ($object_data as $key => $value) {
             if (array_key_exists($key, $data)) {
@@ -77,11 +182,12 @@ class BaseObject {
         }
     }
 
-    function read($criteria = null) {
+    public function read($criteria = null)
+    {
         $object_data = null;
         if ($this->_id) {
             $object_data = $this->dataStore->findById($this->_id);
-        } elseif($criteria) {
+        } elseif ($criteria) {
             $object_data = $this->dataStore->findOneBy($criteria);
         }
         if (!is_null($object_data)) {
@@ -90,8 +196,9 @@ class BaseObject {
         return !is_null($object_data);
     }
 
-    function readAll($criteria) {
-        $objects = array();
+    public function readAll($criteria)
+    {
+        $objects      = array();
         $objects_data = $this->dataStore->findBy($criteria);
         foreach ($objects_data as $object_data) {
             $Object = $this->factory->new(get_class($this));
@@ -102,7 +209,7 @@ class BaseObject {
     }
 
     function print($format = "", $controls = null) {
-        $object_data = $this->getData();
+        $object_data           = $this->getData();
         $printable_object_data = $this->getPrintableFields();
         if ($format == "") {
             foreach ($printable_object_data as $key => $value) {
@@ -127,13 +234,13 @@ class BaseObject {
                     }
                 } elseif (strpos($key, "date") !== false && $key != "candidate_account") {
                     if ($value) {
-                        $value_to_display = date("Y-m-d H:i:s",$value);
+                        $value_to_display = date("Y-m-d H:i:s", $value);
                     } else {
                         $value_to_display = "";
                     }
                 }
                 $values_to_display[$key] = $value_to_display;
-                $object_data[$key] = $value_to_display;
+                $object_data[$key]       = $value_to_display;
             }
             foreach ($values_to_display as $key => $value_to_display) {
                 print "<td>";
@@ -159,7 +266,8 @@ class BaseObject {
         }
     }
 
-    function formHTML($values = array()) {
+    public function formHTML($values = array())
+    {
         $object_data = $this->getPrintableFields();
         unset($object_data["_id"]);
         if (array_key_exists("epoch", $object_data)) {
@@ -186,7 +294,8 @@ class BaseObject {
 
 }
 
-class Group extends BaseObject {
+class Group extends BaseObject
+{
     public $domain;
     /**
      * FIO Public Key of the account which owns the domain.
@@ -211,158 +320,180 @@ class Group extends BaseObject {
     /**
      * Throws exception
      */
-    function create($creator_account, $creator_member_name, $fio_public_key, $group_account, $domain, $member_application_fee) {
-        $Group = $this->factory->new("Group");
-        $criteria = ["domain","=",$domain];
-        $found = $Group->read($criteria);
+    public function create($creator_account, $creator_member_name, $fio_public_key, $group_account, $domain, $member_application_fee)
+    {
+        $Group    = $this->factory->new("Group");
+        $criteria = ["domain", "=", $domain];
+        $found    = $Group->read($criteria);
         if ($found) {
             throw new Exception("A group for domain " . $domain . " already exists.", 1);
         }
+
+/*
+
+create key pair
+send funds to an address to create the domain and account there
+change permissions on the account to be the account who created it
+create domain in that qccount
+create fio address in that account
+
+*/
+
         // TODO: check to see if this key has an account yet
         $Group->group_fio_public_key = $fio_public_key;
         // TODO: check to see if this domain exists on chain yet
         // TODO: support existing domains if owned by the key?
         // TODO: create domain if needed
         $membership_payment_transaction_id = 12345;
-        $Group->domain = $domain;
+        $Group->domain                     = $domain;
         // TODO: should I calculate this automatically using the pub key?
-        $Group->group_account = $group_account;
+        $Group->group_account          = $group_account;
         $Group->member_application_fee = $member_application_fee;
-        $Group->date_created = time();
-        $Group->epoch = 1;
+        $Group->date_created           = time();
+        $Group->epoch                  = 1;
         $Group->save();
 
         // TODO: adjust the permissions of the group so that $creator_account is the owner
         $bio = "I am Satoshi.";
         $Group->apply($creator_account, $creator_member_name, $bio, $membership_payment_transaction_id);
         $Group->approve($creator_account);
-        $members = $Group->getMembers();
+        $members              = $Group->getMembers();
         $members[0]->is_admin = true;
         $members[0]->save();
         return $Group;
     }
 
-    function getPendingMembers() {
-        $PendingMember = $this->factory->new("PendingMember");
-        $criteria = [["domain","=",$this->domain]];
+    public function getPendingMembers()
+    {
+        $PendingMember  = $this->factory->new("PendingMember");
+        $criteria       = [["domain", "=", $this->domain]];
         $pendingmembers = $PendingMember->readAll($criteria);
         return $pendingmembers;
     }
 
-    function getMembers() {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain], ["is_active", "=", true]];
-        $members = $Member->readAll($criteria);
+    public function getMembers()
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["is_active", "=", true]];
+        $members  = $Member->readAll($criteria);
         return $members;
     }
 
-    function getInactiveMembers() {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain], ["is_active", "=", false]];
-        $members = $Member->readAll($criteria);
+    public function getInactiveMembers()
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["is_active", "=", false]];
+        $members  = $Member->readAll($criteria);
         return $members;
     }
 
-    function getDisabledMembers() {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain], ["is_disabled", "=", true]];
-        $members = $Member->readAll($criteria);
+    public function getDisabledMembers()
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["is_disabled", "=", true]];
+        $members  = $Member->readAll($criteria);
         return $members;
     }
 
-    function getAdmins() {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain], ["is_active", "=", true], ["is_admin","=",true]];
-        $admins = $Member->readAll($criteria);
+    public function getAdmins()
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["is_active", "=", true], ["is_admin", "=", true]];
+        $admins   = $Member->readAll($criteria);
         return $admins;
     }
 
-    function getAdminCandidates() {
-        $AdminCandidate = $this->factory->new("AdminCandidate");
-        $criteria = [["domain","=",$this->domain]];
+    public function getAdminCandidates()
+    {
+        $AdminCandidate  = $this->factory->new("AdminCandidate");
+        $criteria        = [["domain", "=", $this->domain]];
         $admincandidates = $AdminCandidate->readAll($criteria);
         return $admincandidates;
     }
 
-    function getApplicatonFee($client) {
+    public function getApplicatonFee($client)
+    {
         $fee = 0;
         try {
             $params = array(
-                "end_point" => "register_fio_address",
-                "fio_address" => ""
+                "end_point"   => "register_fio_address",
+                "fio_address" => "",
             );
             $response = $client->post('/v1/chain/get_fee', [
-                GuzzleHttp\RequestOptions::JSON => $params
+                GuzzleHttp\RequestOptions::JSON => $params,
             ]);
             $result = json_decode($response->getBody());
-            $fee = $result->fee;
-        } catch(\Exception $e) { }
+            $fee    = $result->fee;
+        } catch (\Exception $e) {}
         return ($this->member_application_fee + $fee);
     }
 
-    function apply($account, $member_name_requested, $bio, $membership_payment_transaction_id) {
+    public function apply($account, $member_name_requested, $bio, $membership_payment_transaction_id)
+    {
         $PendingMember = $this->factory->new("PendingMember");
         // TODO: validate $membership_payment_transaction_id
         // TODO: double check on chain member_name_requested hasn't been claimed already.
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $PendingMember->read($criteria);
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $PendingMember->read($criteria);
         if ($found) {
             throw new Exception($account . " is already a pending member for " . $this->domain . ".", 1);
         }
-        $criteria = [["domain","=",$this->domain],["member_name_requested","=",$member_name_requested]];
-        $found = $PendingMember->read($criteria);
+        $criteria = [["domain", "=", $this->domain], ["member_name_requested", "=", $member_name_requested]];
+        $found    = $PendingMember->read($criteria);
         if ($found) {
             throw new Exception($member_name_requested . "@" . $this->domain . " has already been requested by a pending member of " . $this->domain . ".", 1);
         }
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $Member->read($criteria);
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $Member->read($criteria);
         if ($found) {
             throw new Exception($account . " is already a member of " . $this->domain . ".", 1);
         }
-        $criteria = [["domain","=",$this->domain],["member_name","=",$member_name_requested]];
-        $found = $Member->read($criteria);
+        $criteria = [["domain", "=", $this->domain], ["member_name", "=", $member_name_requested]];
+        $found    = $Member->read($criteria);
         if ($found) {
             throw new Exception($member_name_requested . "@" . $this->domain . " has already been claimed by an existing member of " . $this->domain . ".", 1);
         }
-        $PendingMember->member_name_requested = $member_name_requested;
-        $PendingMember->domain = $this->domain;
-        $PendingMember->account = $account;
-        $PendingMember->bio = $bio;
-        $PendingMember->application_date = time();
+        $PendingMember->member_name_requested             = $member_name_requested;
+        $PendingMember->domain                            = $this->domain;
+        $PendingMember->account                           = $account;
+        $PendingMember->bio                               = $bio;
+        $PendingMember->application_date                  = time();
         $PendingMember->membership_payment_transaction_id = $membership_payment_transaction_id;
         $PendingMember->save();
         return $PendingMember;
     }
 
-    function approve($account) {
+    public function approve($account)
+    {
         $PendingMember = $this->factory->new("PendingMember");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $PendingMember->read($criteria);
+        $criteria      = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found         = $PendingMember->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a pending member for " . $this->domain . ".", 1);
         }
         // TODO: check on chain to ensure membership_payment_transaction_id is valid
         // TODO: double check member_name_requested hasn't been claimed already.
-        $Member = $this->factory->new("Member");
-        $Member->member_name = $PendingMember->member_name_requested;
-        $Member->domain = $this->domain;
-        $Member->account = $account;
-        $Member->bio = $PendingMember->bio;
-        $Member->date_added = time();
+        $Member                     = $this->factory->new("Member");
+        $Member->member_name        = $PendingMember->member_name_requested;
+        $Member->domain             = $this->domain;
+        $Member->account            = $account;
+        $Member->bio                = $PendingMember->bio;
+        $Member->date_added         = time();
         $Member->last_verified_date = time();
         // TODO: set to true if there are no other group members?
-        $Member->is_admin = false;
+        $Member->is_admin  = false;
         $Member->is_active = true;
         $Member->save();
         $PendingMember->delete();
         return $Member;
     }
 
-    function deactivate($account) {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $Member->read($criteria);
+    public function deactivate($account)
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $Member->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
@@ -377,10 +508,11 @@ class Group extends BaseObject {
         return $Member;
     }
 
-    function activate($account) {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $Member->read($criteria);
+    public function activate($account)
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $Member->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
@@ -395,10 +527,11 @@ class Group extends BaseObject {
         return $Member;
     }
 
-    function disable($account) {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $Member->read($criteria);
+    public function disable($account)
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $Member->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
@@ -409,15 +542,16 @@ class Group extends BaseObject {
             throw new Exception($account . " is an admin. Please hold a new election first.", 1);
         }
         $Member->is_disabled = true;
-        $Member->is_active = false;
+        $Member->is_active   = false;
         $Member->save();
         return $Member;
     }
 
-    function enable($account) {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $Member->read($criteria);
+    public function enable($account)
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $Member->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
@@ -429,20 +563,22 @@ class Group extends BaseObject {
         return $Member;
     }
 
-    function updateBio($account, $bio) {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $Member->read($criteria);
+    public function updateBio($account, $bio)
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $Member->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
         $Member->bio = $bio;
         $Member->save();
     }
-    function removeMember($account) {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $Member->read($criteria);
+    public function removeMember($account)
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $Member->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
@@ -451,10 +587,11 @@ class Group extends BaseObject {
         }
         $Member->delete();
     }
-    function verifyMember($account) {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $Member->read($criteria);
+    public function verifyMember($account)
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $Member->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
@@ -464,73 +601,80 @@ class Group extends BaseObject {
         $Member->last_verified_date = time();
         $Member->save();
     }
-    function registerCandidate($account) {
-        $Member = $this->factory->new("Member");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $Member->read($criteria);
+    public function registerCandidate($account)
+    {
+        $Member   = $this->factory->new("Member");
+        $criteria = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found    = $Member->read($criteria);
         if (!$found) {
             throw new Exception($account . " is not a member of " . $this->domain . ".", 1);
         }
         $AdminCandidate = $this->factory->new("AdminCandidate");
-        $criteria = [["domain","=",$this->domain],["account","=",$account]];
-        $found = $AdminCandidate->read($criteria);
+        $criteria       = [["domain", "=", $this->domain], ["account", "=", $account]];
+        $found          = $AdminCandidate->read($criteria);
         if ($found) {
             throw new Exception($account . " is already an admin candidate for " . $this->domain . ".", 1);
         }
-        $AdminCandidate->domain = $this->domain;
+        $AdminCandidate->domain  = $this->domain;
         $AdminCandidate->account = $account;
         $AdminCandidate->save();
     }
-    function createElection($number_of_admins, $vote_threshold, $votes_per_member, $vote_date) {
+    public function createElection($number_of_admins, $vote_threshold, $votes_per_member, $vote_date)
+    {
         $Election = $this->factory->new("Election");
-        $criteria = [["domain","=",$this->domain],["is_complete","=",false]];
-        $found = $Election->read($criteria);
+        $criteria = [["domain", "=", $this->domain], ["is_complete", "=", false]];
+        $found    = $Election->read($criteria);
         if ($found) {
             throw new Exception("An election with epoch " . $Election->epoch . " is still pending. Please complete that election before creating a new one.", 1);
         }
-        $Election->domain = $this->domain;
-        $Election->epoch = $this->epoch;
-        $Election->vote_date = $vote_date;
+        $Election->domain           = $this->domain;
+        $Election->epoch            = $this->epoch;
+        $Election->vote_date        = $vote_date;
         $Election->number_of_admins = $number_of_admins;
-        $Election->vote_threshold = $vote_threshold;
+        $Election->vote_threshold   = $vote_threshold;
         $Election->votes_per_member = $votes_per_member;
         $Election->save();
         return $Election;
     }
 
-    function hasActiveElection() {
+    public function hasActiveElection()
+    {
         $has_election = false;
         try {
             $Election = $this->getCurrentElection();
             if (!$Election->is_complete) {
                 $has_election = true;
             }
-        } catch (Exception $e) { }
+        } catch (Exception $e) {}
         return $has_election;
     }
 
-    function getCurrentElection() {
+    public function getCurrentElection()
+    {
         $Election = $this->factory->new("Election");
-        $found = $Election->read([["domain","=",$this->domain],["epoch","=",$this->epoch]]);
+        $found    = $Election->read([["domain", "=", $this->domain], ["epoch", "=", $this->epoch]]);
         if (!$found) {
             throw new Exception("An election with epoch " . $this->epoch . " for " . $this->domain . " can't be found.", 1);
         }
         return $Election;
     }
 
-    function vote($voter_account, $candidate_account, $rank, $vote_weight) {
+    public function vote($voter_account, $candidate_account, $rank, $vote_weight)
+    {
         $Election = $this->getCurrentElection();
         // note: this can throw exception
         $Election->vote($voter_account, $candidate_account, $rank, $vote_weight);
     }
 
-    function removeVote($voter_account, $candidate_account) {
+    public function removeVote($voter_account, $candidate_account)
+    {
         $Election = $this->getCurrentElection();
         // note: this can throw exception
         $Election->removeVote($voter_account, $candidate_account);
     }
 
-    function recordVoteResults() {
+    public function recordVoteResults()
+    {
         $Election = $this->getCurrentElection();
         // note: this can throw exception
         $Election->recordVoteResults();
@@ -540,7 +684,8 @@ class Group extends BaseObject {
 
 }
 
-class PendingMember extends BaseObject {
+class PendingMember extends BaseObject
+{
     public $domain;
     /**
      * FIO address at domain
@@ -556,11 +701,12 @@ class PendingMember extends BaseObject {
      * NEW
      */
     public $membership_payment_transaction_id;
-    public $non_printable_fields = array('domain','membership_payment_transaction_id');
+    public $non_printable_fields = array('domain', 'membership_payment_transaction_id');
 
 }
 
-class Member extends BaseObject {
+class Member extends BaseObject
+{
     public $domain;
     public $member_name;
     public $account;
@@ -582,11 +728,13 @@ class Member extends BaseObject {
      * NEW
      */
     public $is_active;
+    public $last_login_date;
 
     public $non_printable_fields = array('domain');
 }
 
-class AdminCandidate extends BaseObject {
+class AdminCandidate extends BaseObject
+{
     public $domain;
     /**
      * NEW: updated this to just account
@@ -595,7 +743,8 @@ class AdminCandidate extends BaseObject {
     public $non_printable_fields = array('domain');
 }
 
-class Vote extends BaseObject {
+class Vote extends BaseObject
+{
     public $domain;
     /**
      * integer that increases with each election
@@ -619,7 +768,8 @@ class Vote extends BaseObject {
     public $non_printable_fields = array('domain');
 }
 
-class VoteResult extends BaseObject {
+class VoteResult extends BaseObject
+{
     public $domain;
     /**
      * integer that increases with each election
@@ -637,7 +787,8 @@ class VoteResult extends BaseObject {
     public $non_printable_fields = array('domain');
 }
 
-class Election extends BaseObject {
+class Election extends BaseObject
+{
     public $domain;
     /**
      * integer that increases with each election
@@ -670,7 +821,8 @@ class Election extends BaseObject {
 
     public $non_printable_fields = array('domain');
 
-    function vote($voter_account, $candidate_account, $rank, $vote_weight) {
+    public function vote($voter_account, $candidate_account, $rank, $vote_weight)
+    {
         $Vote = $this->factory->new("Vote");
         if (time() > $this->vote_date) {
             throw new Exception("Voting for epoch " . $this->epoch . " is already closed. Now: " . time() . ", deadline: " . $this->vote_date . ".", 1);
@@ -678,42 +830,43 @@ class Election extends BaseObject {
         $voteQueryBuilder = $Vote->dataStore->createQueryBuilder();
         // can't vote for the same person twice
         $already_voted = $Vote->read([
-            ["domain","=",$this->domain],
-            ["epoch","=",$this->epoch],
-            ["voter_account","=",$voter_account],
-            ["candidate_account","=",$candidate_account],
+            ["domain", "=", $this->domain],
+            ["epoch", "=", $this->epoch],
+            ["voter_account", "=", $voter_account],
+            ["candidate_account", "=", $candidate_account],
         ]);
         if ($already_voted) {
             throw new Exception($voter_account . " already voted for " . $candidate_account . ".", 1);
         }
         $result = $voteQueryBuilder
-            ->where([["domain","=",$this->domain],["epoch","=",$this->epoch],["voter_account","=",$voter_account]])
-            ->groupBy(["domain","epoch","voter_account"], "number_of_votes")
+            ->where([["domain", "=", $this->domain], ["epoch", "=", $this->epoch], ["voter_account", "=", $voter_account]])
+            ->groupBy(["domain", "epoch", "voter_account"], "number_of_votes")
             ->getQuery()
             ->fetch();
         if (isset($result[0]['number_of_votes']) && $result[0]['number_of_votes'] >= $this->votes_per_member) {
             throw new Exception($voter_account . " already voted " . $result[0]['number_of_votes'] . " times.", 1);
         }
-        $Vote->domain = $this->domain;
-        $Vote->epoch = $this->epoch;
-        $Vote->voter_account = $voter_account;
+        $Vote->domain            = $this->domain;
+        $Vote->epoch             = $this->epoch;
+        $Vote->voter_account     = $voter_account;
         $Vote->candidate_account = $candidate_account;
-        $Vote->rank = $rank;
-        $Vote->vote_weight = $vote_weight;
-        $Vote->date_of_vote = time();
+        $Vote->rank              = $rank;
+        $Vote->vote_weight       = $vote_weight;
+        $Vote->date_of_vote      = time();
         $Vote->save();
     }
 
-    function removeVote($voter_account, $candidate_account) {
+    public function removeVote($voter_account, $candidate_account)
+    {
         $Vote = $this->factory->new("Vote");
         if (time() > $this->vote_date) {
             throw new Exception("Voting for epoch " . $this->epoch . " is already closed. Now: " . time() . ", deadline: " . $this->vote_date . ".", 1);
         }
         $already_voted = $Vote->read([
-            ["domain","=",$this->domain],
-            ["epoch","=",$this->epoch],
-            ["voter_account","=",$voter_account],
-            ["candidate_account","=",$candidate_account],
+            ["domain", "=", $this->domain],
+            ["epoch", "=", $this->epoch],
+            ["voter_account", "=", $voter_account],
+            ["candidate_account", "=", $candidate_account],
         ]);
         if (!$already_voted) {
             throw new Exception($voter_account . " has not voted for " . $candidate_account . ".", 1);
@@ -721,33 +874,35 @@ class Election extends BaseObject {
         $Vote->delete();
     }
 
-    function getAdminCandidates() {
-        $AdminCandidate = $this->factory->new("AdminCandidate");
-        $criteria = ["domain","=",$this->domain];
+    public function getAdminCandidates()
+    {
+        $AdminCandidate   = $this->factory->new("AdminCandidate");
+        $criteria         = ["domain", "=", $this->domain];
         $admin_candidates = $AdminCandidate->readAll($criteria);
         return $admin_candidates;
     }
 
-    function recordVoteResults() {
+    public function recordVoteResults()
+    {
         // TODO: Implemented ranked choice voting
         // https://github.com/fidian/rcv/blob/master/rcv.php
         if (time() <= $this->vote_date) {
-            $date_display = date("Y-m-d H:i:s",$this->vote_date);
+            $date_display = date("Y-m-d H:i:s", $this->vote_date);
             throw new Exception("This election is not over. Please wait until after " . $date_display, 1);
         }
         $admin_candidates = $this->getAdminCandidates();
-        $Vote = $this->factory->new("Vote");
-        $votes = array();
-        $criteria = [["domain","=",$this->domain],["epoch","=",$this->epoch]];
-        $votes = $Vote->readAll($criteria);
-        $vote_results = array();
+        $Vote             = $this->factory->new("Vote");
+        $votes            = array();
+        $criteria         = [["domain", "=", $this->domain], ["epoch", "=", $this->epoch]];
+        $votes            = $Vote->readAll($criteria);
+        $vote_results     = array();
         foreach ($admin_candidates as $AdminCandidate) {
-            $VoteResult = $this->factory->new("VoteResult");
-            $VoteResult->domain = $this->domain;
-            $VoteResult->epoch = $this->epoch;
+            $VoteResult                    = $this->factory->new("VoteResult");
+            $VoteResult->domain            = $this->domain;
+            $VoteResult->epoch             = $this->epoch;
             $VoteResult->candidate_account = $AdminCandidate->account;
-            $VoteResult->rank = 0; // update this later
-            $VoteResult->votes = 0; // update this later
+            $VoteResult->rank              = 0; // update this later
+            $VoteResult->votes             = 0; // update this later
             foreach ($votes as $Vote) {
                 if ($Vote->candidate_account == $AdminCandidate->account) {
                     $VoteResult->votes += $Vote->vote_weight;
@@ -756,7 +911,7 @@ class Election extends BaseObject {
             $vote_results[] = $VoteResult;
         }
 
-        usort($vote_results, function($a, $b) {
+        usort($vote_results, function ($a, $b) {
             return ($b->votes - $a->votes);
         });
 
@@ -769,9 +924,9 @@ class Election extends BaseObject {
         }
         $vote_results = array_slice($vote_results, 0, $this->number_of_admins);
 
-        $Member = $this->factory->new("Member");
-        $criteria = ["domain","=",$this->domain];
-        $members = $Member->readAll($criteria);
+        $Member   = $this->factory->new("Member");
+        $criteria = ["domain", "=", $this->domain];
+        $members  = $Member->readAll($criteria);
         foreach ($members as $Member) {
             $Member->is_admin = false;
             $Member->save();
@@ -791,7 +946,7 @@ class Election extends BaseObject {
 
         // TODO: queue up a multisig transaction to adjust the permissions of the group account based on the election results
 
-        $this->is_complete = true;
+        $this->is_complete    = true;
         $this->date_certified = time();
         $this->save();
     }

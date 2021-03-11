@@ -195,6 +195,7 @@ final class MemberTest extends TestCase
 <th>Is Admin</th>
 <th>Is Disabled</th>
 <th>Is Active</th>
+<th>Last Login Date</th>
 <th> Id</th>
 </tr>
 <tr>
@@ -206,6 +207,7 @@ final class MemberTest extends TestCase
 <td>false</td>
 <td>false</td>
 <td>true</td>
+<td></td>
 <td>2</td>
 </tr>
 ';
