@@ -16,6 +16,8 @@ $(document).ready(function(){
     }
 
     // TOOD: do validation on the form data
+    // 1. make sure $("#domain").val() is a valid domain format
+    // 2. make sure $("#creator_member_name").val() is a valid name format
 
     privKey = AnchorLink.PrivateKey.generate('K1');
     pubKey = privKey.toPublic();
@@ -42,6 +44,12 @@ $(document).ready(function(){
 });
 
 async function createGroupOnChain(keyPair, actor, domain, name) {
+  // first see if the domain is available
+  const is_available = await isNameAvailable(domain);
+  if (!is_available) {
+    alert("The domain " + domain + " has already been taken. Please try a different domain.");
+    return ;
+  }
   const register_fio_domain_fee = await getFIOChainFee('register_fio_domain');
   const register_fio_address_fee = await getFIOChainFee('register_fio_address');
   const transfer_tokens_pub_key_fee = await getFIOChainFee('transfer_tokens_pub_key');
@@ -182,35 +190,30 @@ async function updateFeeDisplay() {
   const transfer_tokens_pub_key_fee = await getFIOChainFee('transfer_tokens_pub_key');
 */
 
-async function getABI(account_name) {
-  const response = await fetch(link.chains[0].client.provider.url + '/v1/chain/get_abi', {
+async function chainGet(endpoint,params) {
+  const response = await fetch(link.chains[0].client.provider.url + '/v1/chain/' + endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      account_name: account_name
-    })
+    body: JSON.stringify(params)
   })
   const data = await response.json()
-  console.log(data.abi);
-  return data.abi;
+  return data;
 }
 
+async function getABI(account_name) {
+  const result = await chainGet('get_abi',{account_name: account_name});
+  return result.abi;
+}
 async function getFIOChainFee(endpoint) {
-  const response = await fetch(link.chains[0].client.provider.url + '/v1/chain/get_fee', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      end_point: endpoint,
-      fio_address: '',
-    })
-  })
-  const data = await response.json()
-  fee = data.fee + (data.fee * .1);
+  const result = await chainGet('get_fee',{end_point: endpoint,fio_address: '',});
+  fee = result.fee + (result.fee * .1);
   return fee;
+}
+async function isNameAvailable(name) {
+  const result = await chainGet('avail_check',{fio_name: name});
+  return (result.is_registered == 0);
 }
 
 async function updatePermissionsOfNewlyCreatedAcccount(keyPair, actor) {
