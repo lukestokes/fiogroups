@@ -32,6 +32,7 @@ session_start();
 
 if (isset($_SESSION["username"])) {
     $logged_in_user = $_SESSION["username"];
+    $Util->actor = $_SESSION['username'];
 }
 
 include "actions.php";

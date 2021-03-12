@@ -26,7 +26,7 @@ $(document).ready(function(){
       public:fio_public_key
     };
 
-    console.log(keyPair);
+    console.log("Created a new temporary keyPair for " + keyPair.public);
 
     pubkey = keyPair.public.substring('FIO'.length, keyPair.public.length);
     const decoded58 = b58decode(pubkey);
@@ -36,13 +36,264 @@ $(document).ready(function(){
     $("#group_fio_public_key").val(keyPair.public);
     $("#group_account").val(actor);
 
-    createAccountAndTransferStartupFunds(keyPair, actor);
+    createGroupOnChain(keyPair, actor, $("#domain").val(), $("#creator_member_name").val());
   });
 
 });
 
-// via https://gist.github.com/bellbind/1f07f94e5ce31557ef23dc2a9b3cc2e1
+async function createGroupOnChain(keyPair, actor, domain, name) {
+  const register_fio_domain_fee = await getFIOChainFee('register_fio_domain');
+  const register_fio_address_fee = await getFIOChainFee('register_fio_address');
+  const transfer_tokens_pub_key_fee = await getFIOChainFee('transfer_tokens_pub_key');
+  const transfer_fio_domain_fee = await getFIOChainFee('transfer_fio_domain');
+  const tpid = 'luke@stokes'
+  const domain_action = {
+    authorization: [session.auth],
+    account: 'fio.address',
+    name: 'regdomain',
+    data: {
+      fio_domain: domain,
+      owner_fio_public_key: session.publicKey.toLegacyString("FIO"),
+      max_fee: register_fio_domain_fee,
+      actor: session.auth.actor,
+      tpid: tpid
+    }
+  }
+  const address_action = {
+    authorization: [session.auth],
+    account: 'fio.address',
+    name: 'regaddress',
+    data: {
+      fio_address: name + "@" + domain,
+      owner_fio_public_key: session.publicKey.toLegacyString("FIO"),
+      max_fee: register_fio_address_fee,
+      actor: session.auth.actor,
+      tpid: tpid
+    }
+  }
+  /*
+  // this is too much, transaction times out
+  const treasury_address_action = {
+    authorization: [session.auth],
+    account: 'fio.address',
+    name: 'regaddress',
+    data: {
+      fio_address: "treasury@" + domain,
+      owner_fio_public_key: session.publicKey.toLegacyString("FIO"),
+      max_fee: register_fio_address_fee,
+      actor: session.auth.actor,
+      tpid: tpid
+    }
+  }
+  */
+  const transfer_action = {
+    authorization: [session.auth],
+    account: 'fio.token',
+    name: 'trnsfiopubky',
+    data: {
+        payee_public_key: keyPair.public,
+        amount: FIOToSUF(10), // enough to do msigs and such.
+        max_fee: transfer_tokens_pub_key_fee,
+        actor: session.auth.actor,
+        tpid: tpid
+    }
+  }
+  const actions_result = await session.transact(
+    {
+      //actions: [domain_action,address_action,treasury_address_action,transfer_action]
+      actions: [domain_action,address_action,transfer_action]
+    }
+  );
+  /*
+  if (!actions_result.transaction_id) {
+    console.log(actions_result);
+    return ;
+  }
+  */
+  console.log("Domain created, address created, tokens transfered")
+  console.log(actions_result.transaction_id);
 
+  const permission_update_result = await updatePermissionsOfNewlyCreatedAcccount(keyPair, actor);
+  /*
+  if (!permission_update_result.transaction_id) {
+    console.log(permission_update_result);
+    alert("There was an error setting up your group. Please make sure you have enough FIO Tokens. Check the console for details.")
+    return ;
+  }
+  */
+  console.log("Permissions updated for new account at " + keyPair.public)
+  console.log(permission_update_result.transaction_id);
+
+  const transfer_domain_action = {
+    authorization: [session.auth],
+    account: 'fio.address',
+    name: 'xferdomain',
+    data: {
+      fio_domain: domain,
+      new_owner_fio_public_key: keyPair.public,
+      max_fee: transfer_fio_domain_fee,
+      actor: session.auth.actor,
+      tpid: tpid
+    }
+  }
+  /*
+  const transfer_treasury_action = {
+    authorization: [session.auth],
+    account: 'fio.address',
+    name: 'xferaddress',
+    data: {
+      fio_address: "treasury@" + domain,
+      new_owner_fio_public_key: keyPair.public,
+      max_fee: transfer_fio_domain_fee,
+      actor: session.auth.actor,
+      tpid: tpid
+    }
+  }
+  */
+  const transfer_domain_result = await session.transact(
+    {
+      //actions: [transfer_domain_action, transfer_treasury_action]
+      action: transfer_domain_action
+    }
+  );
+  /*
+  if (!transfer_domain_result.transaction_id) {
+    alert("There was an error transferring your domain. Please make sure you have enough FIO Tokens. Check the console for details.")
+    console.log(transfer_domain_result);
+    return ;
+  }
+  */
+  console.log("Domain transfered to " + keyPair.public)
+  console.log(transfer_domain_result.transaction_id);
+  $('#create_group').submit();
+}
+
+
+function FIOToSUF(amount) {
+  return (amount * 1000000000);
+}
+function SUFToFIO(amount) {
+  return (amount / 1000000000);
+}
+
+/*
+async function updateFeeDisplay() {
+  const register_fio_domain_fee = await getFIOChainFee('register_fio_domain');
+  const transfer_tokens_pub_key_fee = await getFIOChainFee('transfer_tokens_pub_key');
+*/
+
+async function getABI(account_name) {
+  const response = await fetch(link.chains[0].client.provider.url + '/v1/chain/get_abi', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      account_name: account_name
+    })
+  })
+  const data = await response.json()
+  console.log(data.abi);
+  return data.abi;
+}
+
+async function getFIOChainFee(endpoint) {
+  const response = await fetch(link.chains[0].client.provider.url + '/v1/chain/get_fee', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      end_point: endpoint,
+      fio_address: '',
+    })
+  })
+  const data = await response.json()
+  fee = data.fee + (data.fee * .1);
+  return fee;
+}
+
+async function updatePermissionsOfNewlyCreatedAcccount(keyPair, actor) {
+  const auth_update_fee = await getFIOChainFee('auth_update');
+  const abi = await getABI('eosio');
+  const info = await link.client.v1.chain.get_info()
+  const header = info.getTransactionHeader()
+  const upate_owner_action = getUpdateAuthAction(actor,"owner","", auth_update_fee, abi);
+  const upate_active_action = getUpdateAuthAction(actor,"active","owner", auth_update_fee, abi);
+  const signedTransaction = getSignedTransaction(
+    header,
+    keyPair,
+    [upate_active_action,upate_owner_action],
+    info);
+  const result = await link.client.v1.chain.push_transaction(signedTransaction)
+  console.log(result);
+  return result;
+}
+
+function getSignedTransaction(header, keyPair, actions, info) {
+  const transaction = AnchorLink.Transaction.from({
+      ...header,
+      actions: actions,
+  })
+  const privateKey = AnchorLink.PrivateKey.from(keyPair.private)
+  const signature = privateKey.signDigest(transaction.signingDigest(info.chain_id))
+  const signedTransaction = AnchorLink.SignedTransaction.from({
+      ...transaction,
+      signatures: [signature],
+  })
+  return signedTransaction
+}
+
+function getUpdateAuthAction(actor, permission, parent, auth_update_fee, abi) {
+  const action = AnchorLink.Action.from({
+  "authorization": [
+      {
+          "actor": actor,
+          "permission": 'owner',
+      },
+  ],
+  "account": 'eosio',
+  "name": 'updateauth',
+  "data": {
+    "account": actor,
+    "permission": permission,
+    "parent": parent,
+    "auth": {
+      "threshold": 1,
+      "keys": [],
+      "accounts": [
+        {
+          "permission": {
+            "actor": session.auth.actor,
+            "permission": "active"
+          },
+          "weight": 1
+        }
+      ],
+      "waits": []
+    },
+    "max_fee": auth_update_fee
+  }
+  },abi);
+  return action;
+}
+
+async function createKeyPair() {
+  privKey = AnchorLink.PrivateKey.generate('K1');
+  pubKey = privKey.toPublic();
+  privKeyWif = privKey.toWif();
+  fio_public_key = pubKey.toLegacyString('FIO');
+  keyPair = {
+    private:privKeyWif,
+    public:fio_public_key
+  };
+  //console.log(keyPair);
+  return keyPair;
+}
+
+/* BEGIN BORROWED CODE */
+
+// via https://gist.github.com/bellbind/1f07f94e5ce31557ef23dc2a9b3cc2e1
 // Bitcoin Base58 encoder/decoder algorithm
 const btcTable = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 console.assert(btcTable.length === 58);
@@ -92,7 +343,6 @@ function b58encode(beBytes, table = btcTable) {
   const num = beBytes.slice(trails).reduce((r, n) => r * 256n + BigInt(n), 0n);
   return head0s + biToB58(num, table).join("");
 }
-
 
 // via https://github.com/fioprotocol/fiojs/blob/649368f5540aec35914082eb929399401456ab91/src/accountname.ts#L16
 
@@ -145,1760 +395,8 @@ function shortenKey(key) {
   return res;
 }
 
-function FIOToSUF(amount) {
-  return (amount * 1000000000);
-}
-function SUFToFIO(amount) {
-  return (amount / 1000000000);
-}
+/* END BORROWED CODE */
 
-/*
-async function updateFeeDisplay() {
-  const register_fio_domain_fee = await getFIOChainFee('register_fio_domain');
-  const transfer_tokens_pub_key_fee = await getFIOChainFee('transfer_tokens_pub_key');
-*/
-
-async function getABI(account_name) {
-  const response = await fetch(link.chains[0].client.provider.url + '/v1/chain/get_raw_abi', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      account_name: account_name
-    })
-  })
-  const data = await response.json()
-  console.log(data.abi);
-  return data.abi;
-}
-
-async function getFIOChainFee(endpoint) {
-  const response = await fetch(link.chains[0].client.provider.url + '/v1/chain/get_fee', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      end_point: endpoint,
-      fio_address: '',
-    })
-  })
-  const data = await response.json()
-  fee = data.fee + (data.fee * .1);
-  return fee;
-}
-async function transferFunds(fio_public_key, amount, max_fee, ) {
-    const action = {
-        account: 'fio.token',
-        name: 'trnsfiopubky',
-        authorization: [session.auth],
-        data: {
-            payee_public_key: fio_public_key,
-            amount: amount,
-            max_fee: max_fee,
-            tpid: 'luke@stokes',
-            actor: session.auth.actor
-        }
-    }
-    const result = await session.transact({action});
-    console.log(result);
-    console.log(result.processed.id);
-    console.log(fio_public_key);
-    return result.processed.id;
-}
-
-async function createAccountAndTransferStartupFunds(keyPair, actor) {
-  const register_fio_address_fee = await getFIOChainFee('register_fio_address');
-  const register_fio_domain_fee = await getFIOChainFee('register_fio_domain');
-  //register_fio_domain_fee = await getFIOChainFee('register_fio_domain');
-  // TESTING
-  //register_fio_domain_fee = 1581368308;
-  const transfer_tokens_pub_key_fee = await getFIOChainFee('transfer_tokens_pub_key');
-  const transaction_id = await transferFunds(
-    keyPair.public,
-    (register_fio_domain_fee + register_fio_address_fee),
-    transfer_tokens_pub_key_fee
-    );
-  console.log(transaction_id);
-
-  const register_result = await registerDomainAndAddress(
-    keyPair,
-    actor,
-    $("#domain").val(),
-    $("#creator_member_name").val(),
-    register_fio_address_fee,
-    register_fio_domain_fee);
-
-  // QUESTION? Should we register the domain and user BEFORE updating account permissions? Maybe update owner first?
-
-  const permission_update_result = await updatePermissionsOfNewlyCreatedAcccount(keyPair, actor);
-
-  $('#create_group').submit();
-
-}
-
-async function registerDomainAndAddress(keyPair, actor, domain, name, register_fio_address_fee, register_fio_domain_fee) {
-  const info = await link.client.v1.chain.get_info()
-  const header = info.getTransactionHeader()
-  const domain_action = getRegisterDomainAction(
-    actor,
-    domain,
-    keyPair.public,
-    register_fio_domain_fee);
-  const address_action = getRegisterAddressAction(
-    actor,
-    name + "@" + domain,
-    session.publicKey.toLegacyString("FIO"),
-    register_fio_address_fee);
-  const signedTransaction = getSignedTransaction(
-    header,
-    keyPair,
-    [domain_action, address_action],
-    info);
-  const result = await link.client.v1.chain.push_transaction(signedTransaction)
-  console.log(result);
-
-  return result;
-}
-
-async function updatePermissionsOfNewlyCreatedAcccount(keyPair, actor) {
-  const auth_update_fee = await getFIOChainFee('auth_update');
-  //const abi = await getABI('eosio');
-  const info = await link.client.v1.chain.get_info()
-  const header = info.getTransactionHeader()
-  const upate_owner_action = getUpdateAuthAction(actor,"owner","", auth_update_fee);
-  const upate_active_action = getUpdateAuthAction(actor,"active","owner", auth_update_fee);
-  const signedTransaction = getSignedTransaction(
-    header,
-    keyPair,
-    [upate_active_action,upate_owner_action],
-    info);
-  const result = await link.client.v1.chain.push_transaction(signedTransaction)
-  console.log(result);
-  return result;
-}
-
-function getSignedTransaction(header, keyPair, actions, info) {
-  const transaction = AnchorLink.Transaction.from({
-      ...header,
-      actions: actions,
-  })
-  const privateKey = AnchorLink.PrivateKey.from(keyPair.private)
-  const signature = privateKey.signDigest(transaction.signingDigest(info.chain_id))
-  const signedTransaction = AnchorLink.SignedTransaction.from({
-      ...transaction,
-      signatures: [signature],
-  })
-  return signedTransaction
-}
-
-function getRegisterDomainAction(actor, domain, owner_fio_public_key, max_fee) {
-  const action = AnchorLink.Action.from({
-  "authorization": [
-      {
-          "actor": actor,
-          "permission": 'active',
-      },
-  ],
-  "account": 'fio.address',
-  "name": 'regdomain',
-  "data": {
-    "fio_domain": domain,
-    "owner_fio_public_key": owner_fio_public_key,
-    "max_fee": max_fee,
-    "actor": actor,
-    "tpid": ""
-  }
-  },fioaddress_abi);
-  return action;
-}
-function getRegisterAddressAction(actor, fio_address, owner_fio_public_key, max_fee) {
-  const action = AnchorLink.Action.from({
-  "authorization": [
-      {
-          "actor": actor,
-          "permission": 'active',
-      },
-  ],
-  "account": 'fio.address',
-  "name": 'regaddress',
-  "data": {
-    "fio_address": fio_address,
-    "owner_fio_public_key": owner_fio_public_key,
-    "max_fee": max_fee,
-    "actor": actor,
-    "tpid": ""
-  }
-  },fioaddress_abi);
-  return action;
-}
-function getUpdateAuthAction(actor, permission, parent, auth_update_fee) {
-  const action = AnchorLink.Action.from({
-  "authorization": [
-      {
-          "actor": actor,
-          "permission": 'owner',
-      },
-  ],
-  "account": 'eosio',
-  "name": 'updateauth',
-  "data": {
-    "account": actor,
-    "permission": permission,
-    "parent": parent,
-    "auth": {
-      "threshold": 1,
-      "keys": [],
-      "accounts": [
-        {
-          "permission": {
-            "actor": session.auth.actor,
-            "permission": "active"
-          },
-          "weight": 1
-        }
-      ],
-      "waits": []
-    },
-    "max_fee": auth_update_fee
-  }
-  },eosio_abi);
-  return action;
-}
-
-
-async function createKeyPair() {
-  privKey = AnchorLink.PrivateKey.generate('K1');
-  pubKey = privKey.toPublic();
-  privKeyWif = privKey.toWif();
-  fio_public_key = pubKey.toLegacyString('FIO');
-  keyPair = {
-    private:privKeyWif,
-    public:fio_public_key
-  };
-  //console.log(keyPair);
-  return keyPair;
-}
-
-// TODO: pull this from the chain.
-
-eosio_abi = {
-  "version": "eosio::abi/1.1",
-  "types": [],
-  "structs": [{
-      "name": "abi_hash",
-      "base": "",
-      "fields": [{
-          "name": "owner",
-          "type": "name"
-        },{
-          "name": "hash",
-          "type": "checksum256"
-        }
-      ]
-    },{
-      "name": "addaction",
-      "base": "",
-      "fields": [{
-          "name": "action",
-          "type": "name"
-        },{
-          "name": "contract",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "addgenlocked",
-      "base": "",
-      "fields": [{
-          "name": "owner",
-          "type": "name"
-        },{
-          "name": "periods",
-          "type": "lockperiods[]"
-        },{
-          "name": "canvote",
-          "type": "bool"
-        },{
-          "name": "amount",
-          "type": "int64"
-        }
-      ]
-    },{
-      "name": "addlocked",
-      "base": "",
-      "fields": [{
-          "name": "owner",
-          "type": "name"
-        },{
-          "name": "amount",
-          "type": "int64"
-        },{
-          "name": "locktype",
-          "type": "int16"
-        }
-      ]
-    },{
-      "name": "authority",
-      "base": "",
-      "fields": [{
-          "name": "threshold",
-          "type": "uint32"
-        },{
-          "name": "keys",
-          "type": "key_weight[]"
-        },{
-          "name": "accounts",
-          "type": "permission_level_weight[]"
-        },{
-          "name": "waits",
-          "type": "wait_weight[]"
-        }
-      ]
-    },{
-      "name": "block_header",
-      "base": "",
-      "fields": [{
-          "name": "timestamp",
-          "type": "uint32"
-        },{
-          "name": "producer",
-          "type": "name"
-        },{
-          "name": "confirmed",
-          "type": "uint16"
-        },{
-          "name": "previous",
-          "type": "checksum256"
-        },{
-          "name": "transaction_mroot",
-          "type": "checksum256"
-        },{
-          "name": "action_mroot",
-          "type": "checksum256"
-        },{
-          "name": "schedule_version",
-          "type": "uint32"
-        },{
-          "name": "new_producers",
-          "type": "producer_schedule?"
-        }
-      ]
-    },{
-      "name": "blockchain_parameters",
-      "base": "",
-      "fields": [{
-          "name": "max_block_net_usage",
-          "type": "uint64"
-        },{
-          "name": "target_block_net_usage_pct",
-          "type": "uint32"
-        },{
-          "name": "max_transaction_net_usage",
-          "type": "uint32"
-        },{
-          "name": "base_per_transaction_net_usage",
-          "type": "uint32"
-        },{
-          "name": "net_usage_leeway",
-          "type": "uint32"
-        },{
-          "name": "context_free_discount_net_usage_num",
-          "type": "uint32"
-        },{
-          "name": "context_free_discount_net_usage_den",
-          "type": "uint32"
-        },{
-          "name": "max_block_cpu_usage",
-          "type": "uint32"
-        },{
-          "name": "target_block_cpu_usage_pct",
-          "type": "uint32"
-        },{
-          "name": "max_transaction_cpu_usage",
-          "type": "uint32"
-        },{
-          "name": "min_transaction_cpu_usage",
-          "type": "uint32"
-        },{
-          "name": "max_transaction_lifetime",
-          "type": "uint32"
-        },{
-          "name": "deferred_trx_expiration_window",
-          "type": "uint32"
-        },{
-          "name": "max_transaction_delay",
-          "type": "uint32"
-        },{
-          "name": "max_inline_action_size",
-          "type": "uint32"
-        },{
-          "name": "max_inline_action_depth",
-          "type": "uint16"
-        },{
-          "name": "max_authority_depth",
-          "type": "uint16"
-        }
-      ]
-    },{
-      "name": "burnaction",
-      "base": "",
-      "fields": [{
-          "name": "fioaddrhash",
-          "type": "uint128"
-        }
-      ]
-    },{
-      "name": "canceldelay",
-      "base": "",
-      "fields": [{
-          "name": "canceling_auth",
-          "type": "permission_level"
-        },{
-          "name": "trx_id",
-          "type": "checksum256"
-        }
-      ]
-    },{
-      "name": "crautoproxy",
-      "base": "",
-      "fields": [{
-          "name": "proxy",
-          "type": "name"
-        },{
-          "name": "owner",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "deleteauth",
-      "base": "",
-      "fields": [{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "permission",
-          "type": "name"
-        },{
-          "name": "max_fee",
-          "type": "uint64"
-        }
-      ]
-    },{
-      "name": "eosio_global_state",
-      "base": "blockchain_parameters",
-      "fields": [{
-          "name": "last_producer_schedule_update",
-          "type": "block_timestamp_type"
-        },{
-          "name": "last_pervote_bucket_fill",
-          "type": "time_point"
-        },{
-          "name": "pervote_bucket",
-          "type": "int64"
-        },{
-          "name": "perblock_bucket",
-          "type": "int64"
-        },{
-          "name": "total_unpaid_blocks",
-          "type": "uint32"
-        },{
-          "name": "total_voted_fio",
-          "type": "int64"
-        },{
-          "name": "thresh_voted_fio_time",
-          "type": "time_point"
-        },{
-          "name": "last_producer_schedule_size",
-          "type": "uint16"
-        },{
-          "name": "total_producer_vote_weight",
-          "type": "float64"
-        },{
-          "name": "last_name_close",
-          "type": "block_timestamp_type"
-        },{
-          "name": "last_fee_update",
-          "type": "block_timestamp_type"
-        }
-      ]
-    },{
-      "name": "eosio_global_state2",
-      "base": "",
-      "fields": [{
-          "name": "last_block_num",
-          "type": "block_timestamp_type"
-        },{
-          "name": "total_producer_votepay_share",
-          "type": "float64"
-        },{
-          "name": "revision",
-          "type": "uint8"
-        }
-      ]
-    },{
-      "name": "eosio_global_state3",
-      "base": "",
-      "fields": [{
-          "name": "last_vpay_state_update",
-          "type": "time_point"
-        },{
-          "name": "total_vpay_share_change_rate",
-          "type": "float64"
-        }
-      ]
-    },{
-      "name": "incram",
-      "base": "",
-      "fields": [{
-          "name": "accountmn",
-          "type": "name"
-        },{
-          "name": "amount",
-          "type": "int64"
-        }
-      ]
-    },{
-      "name": "inhibitunlck",
-      "base": "",
-      "fields": [{
-          "name": "owner",
-          "type": "name"
-        },{
-          "name": "value",
-          "type": "uint32"
-        }
-      ]
-    },{
-      "name": "init",
-      "base": "",
-      "fields": [{
-          "name": "version",
-          "type": "varuint32"
-        },{
-          "name": "core",
-          "type": "symbol"
-        }
-      ]
-    },{
-      "name": "key_weight",
-      "base": "",
-      "fields": [{
-          "name": "key",
-          "type": "public_key"
-        },{
-          "name": "weight",
-          "type": "uint16"
-        }
-      ]
-    },{
-      "name": "linkauth",
-      "base": "",
-      "fields": [{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "code",
-          "type": "name"
-        },{
-          "name": "type",
-          "type": "name"
-        },{
-          "name": "requirement",
-          "type": "name"
-        },{
-          "name": "max_fee",
-          "type": "uint64"
-        }
-      ]
-    },{
-      "name": "locked_token_holder_info",
-      "base": "",
-      "fields": [{
-          "name": "owner",
-          "type": "name"
-        },{
-          "name": "total_grant_amount",
-          "type": "uint64"
-        },{
-          "name": "unlocked_period_count",
-          "type": "uint32"
-        },{
-          "name": "grant_type",
-          "type": "uint32"
-        },{
-          "name": "inhibit_unlocking",
-          "type": "uint32"
-        },{
-          "name": "remaining_locked_amount",
-          "type": "uint64"
-        },{
-          "name": "timestamp",
-          "type": "uint32"
-        }
-      ]
-    },{
-      "name": "locked_tokens_info",
-      "base": "",
-      "fields": [{
-          "name": "id",
-          "type": "int64"
-        },{
-          "name": "owner_account",
-          "type": "name"
-        },{
-          "name": "lock_amount",
-          "type": "int64"
-        },{
-          "name": "payouts_performed",
-          "type": "int32"
-        },{
-          "name": "can_vote",
-          "type": "int32"
-        },{
-          "name": "periods",
-          "type": "lockperiods[]"
-        },{
-          "name": "remaining_lock_amount",
-          "type": "int64"
-        },{
-          "name": "timestamp",
-          "type": "uint32"
-        }
-      ]
-    },{
-      "name": "lockperiods",
-      "base": "",
-      "fields": [{
-          "name": "duration",
-          "type": "int64"
-        },{
-          "name": "percent",
-          "type": "float64"
-        }
-      ]
-    },{
-      "name": "newaccount",
-      "base": "",
-      "fields": [{
-          "name": "creator",
-          "type": "name"
-        },{
-          "name": "name",
-          "type": "name"
-        },{
-          "name": "owner",
-          "type": "authority"
-        },{
-          "name": "active",
-          "type": "authority"
-        }
-      ]
-    },{
-      "name": "onblock",
-      "base": "",
-      "fields": [{
-          "name": "header",
-          "type": "block_header"
-        }
-      ]
-    },{
-      "name": "onerror",
-      "base": "",
-      "fields": [{
-          "name": "sender_id",
-          "type": "uint128"
-        },{
-          "name": "sent_trx",
-          "type": "bytes"
-        }
-      ]
-    },{
-      "name": "permission_level",
-      "base": "",
-      "fields": [{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "permission",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "permission_level_weight",
-      "base": "",
-      "fields": [{
-          "name": "permission",
-          "type": "permission_level"
-        },{
-          "name": "weight",
-          "type": "uint16"
-        }
-      ]
-    },{
-      "name": "producer_info",
-      "base": "",
-      "fields": [{
-          "name": "id",
-          "type": "uint64"
-        },{
-          "name": "owner",
-          "type": "name"
-        },{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "addresshash",
-          "type": "uint128"
-        },{
-          "name": "total_votes",
-          "type": "float64"
-        },{
-          "name": "producer_public_key",
-          "type": "public_key"
-        },{
-          "name": "is_active",
-          "type": "bool"
-        },{
-          "name": "url",
-          "type": "string"
-        },{
-          "name": "unpaid_blocks",
-          "type": "uint32"
-        },{
-          "name": "last_claim_time",
-          "type": "time_point"
-        },{
-          "name": "last_bpclaim",
-          "type": "uint32"
-        },{
-          "name": "location",
-          "type": "uint16"
-        }
-      ]
-    },{
-      "name": "producer_key",
-      "base": "",
-      "fields": [{
-          "name": "producer_name",
-          "type": "name"
-        },{
-          "name": "block_signing_key",
-          "type": "public_key"
-        }
-      ]
-    },{
-      "name": "producer_schedule",
-      "base": "",
-      "fields": [{
-          "name": "version",
-          "type": "uint32"
-        },{
-          "name": "producers",
-          "type": "producer_key[]"
-        }
-      ]
-    },{
-      "name": "regproducer",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "fio_pub_key",
-          "type": "string"
-        },{
-          "name": "url",
-          "type": "string"
-        },{
-          "name": "location",
-          "type": "uint16"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        }
-      ]
-    },{
-      "name": "regproxy",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        }
-      ]
-    },{
-      "name": "remaction",
-      "base": "",
-      "fields": [{
-          "name": "action",
-          "type": "name"
-        },{
-          "name": "actor",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "resetclaim",
-      "base": "",
-      "fields": [{
-          "name": "producer",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "rmvproducer",
-      "base": "",
-      "fields": [{
-          "name": "producer",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "setabi",
-      "base": "",
-      "fields": [{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "abi",
-          "type": "bytes"
-        }
-      ]
-    },{
-      "name": "setautoproxy",
-      "base": "",
-      "fields": [{
-          "name": "proxy",
-          "type": "name"
-        },{
-          "name": "owner",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "setcode",
-      "base": "",
-      "fields": [{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "vmtype",
-          "type": "uint8"
-        },{
-          "name": "vmversion",
-          "type": "uint8"
-        },{
-          "name": "code",
-          "type": "bytes"
-        }
-      ]
-    },{
-      "name": "setparams",
-      "base": "",
-      "fields": [{
-          "name": "params",
-          "type": "blockchain_parameters"
-        }
-      ]
-    },{
-      "name": "setpriv",
-      "base": "",
-      "fields": [{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "is_priv",
-          "type": "uint8"
-        }
-      ]
-    },{
-      "name": "top_prod_info",
-      "base": "",
-      "fields": [{
-          "name": "producer",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "unlinkauth",
-      "base": "",
-      "fields": [{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "code",
-          "type": "name"
-        },{
-          "name": "type",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "unlocktokens",
-      "base": "",
-      "fields": [{
-          "name": "actor",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "unregprod",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        }
-      ]
-    },{
-      "name": "unregproxy",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        }
-      ]
-    },{
-      "name": "updateauth",
-      "base": "",
-      "fields": [{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "permission",
-          "type": "name"
-        },{
-          "name": "parent",
-          "type": "name"
-        },{
-          "name": "auth",
-          "type": "authority"
-        },{
-          "name": "max_fee",
-          "type": "uint64"
-        }
-      ]
-    },{
-      "name": "updatepower",
-      "base": "",
-      "fields": [{
-          "name": "voter",
-          "type": "name"
-        },{
-          "name": "updateonly",
-          "type": "bool"
-        }
-      ]
-    },{
-      "name": "updlbpclaim",
-      "base": "",
-      "fields": [{
-          "name": "producer",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "updlocked",
-      "base": "",
-      "fields": [{
-          "name": "owner",
-          "type": "name"
-        },{
-          "name": "amountremaining",
-          "type": "uint64"
-        }
-      ]
-    },{
-      "name": "updtrevision",
-      "base": "",
-      "fields": [{
-          "name": "revision",
-          "type": "uint8"
-        }
-      ]
-    },{
-      "name": "user_resources",
-      "base": "",
-      "fields": [{
-          "name": "owner",
-          "type": "name"
-        },{
-          "name": "net_weight",
-          "type": "asset"
-        },{
-          "name": "cpu_weight",
-          "type": "asset"
-        },{
-          "name": "ram_bytes",
-          "type": "int64"
-        }
-      ]
-    },{
-      "name": "voteproducer",
-      "base": "",
-      "fields": [{
-          "name": "producers",
-          "type": "string[]"
-        },{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        }
-      ]
-    },{
-      "name": "voteproxy",
-      "base": "",
-      "fields": [{
-          "name": "proxy",
-          "type": "string"
-        },{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        }
-      ]
-    },{
-      "name": "voter_info",
-      "base": "",
-      "fields": [{
-          "name": "id",
-          "type": "uint64"
-        },{
-          "name": "fioaddress",
-          "type": "string"
-        },{
-          "name": "addresshash",
-          "type": "uint128"
-        },{
-          "name": "owner",
-          "type": "name"
-        },{
-          "name": "proxy",
-          "type": "name"
-        },{
-          "name": "producers",
-          "type": "name[]"
-        },{
-          "name": "last_vote_weight",
-          "type": "float64"
-        },{
-          "name": "proxied_vote_weight",
-          "type": "float64"
-        },{
-          "name": "is_proxy",
-          "type": "bool"
-        },{
-          "name": "is_auto_proxy",
-          "type": "bool"
-        },{
-          "name": "reserved2",
-          "type": "uint32"
-        },{
-          "name": "reserved3",
-          "type": "asset"
-        }
-      ]
-    },{
-      "name": "wait_weight",
-      "base": "",
-      "fields": [{
-          "name": "wait_sec",
-          "type": "uint32"
-        },{
-          "name": "weight",
-          "type": "uint16"
-        }
-      ]
-    }
-  ],
-  "actions": [{
-      "name": "addaction",
-      "type": "addaction",
-      "ricardian_contract": ""
-    },{
-      "name": "addgenlocked",
-      "type": "addgenlocked",
-      "ricardian_contract": ""
-    },{
-      "name": "addlocked",
-      "type": "addlocked",
-      "ricardian_contract": ""
-    },{
-      "name": "burnaction",
-      "type": "burnaction",
-      "ricardian_contract": ""
-    },{
-      "name": "canceldelay",
-      "type": "canceldelay",
-      "ricardian_contract": ""
-    },{
-      "name": "crautoproxy",
-      "type": "crautoproxy",
-      "ricardian_contract": ""
-    },{
-      "name": "deleteauth",
-      "type": "deleteauth",
-      "ricardian_contract": ""
-    },{
-      "name": "incram",
-      "type": "incram",
-      "ricardian_contract": ""
-    },{
-      "name": "inhibitunlck",
-      "type": "inhibitunlck",
-      "ricardian_contract": ""
-    },{
-      "name": "init",
-      "type": "init",
-      "ricardian_contract": ""
-    },{
-      "name": "linkauth",
-      "type": "linkauth",
-      "ricardian_contract": ""
-    },{
-      "name": "newaccount",
-      "type": "newaccount",
-      "ricardian_contract": ""
-    },{
-      "name": "onblock",
-      "type": "onblock",
-      "ricardian_contract": ""
-    },{
-      "name": "onerror",
-      "type": "onerror",
-      "ricardian_contract": ""
-    },{
-      "name": "regproducer",
-      "type": "regproducer",
-      "ricardian_contract": ""
-    },{
-      "name": "regproxy",
-      "type": "regproxy",
-      "ricardian_contract": ""
-    },{
-      "name": "remaction",
-      "type": "remaction",
-      "ricardian_contract": ""
-    },{
-      "name": "resetclaim",
-      "type": "resetclaim",
-      "ricardian_contract": ""
-    },{
-      "name": "rmvproducer",
-      "type": "rmvproducer",
-      "ricardian_contract": ""
-    },{
-      "name": "setabi",
-      "type": "setabi",
-      "ricardian_contract": ""
-    },{
-      "name": "setautoproxy",
-      "type": "setautoproxy",
-      "ricardian_contract": ""
-    },{
-      "name": "setcode",
-      "type": "setcode",
-      "ricardian_contract": ""
-    },{
-      "name": "setparams",
-      "type": "setparams",
-      "ricardian_contract": ""
-    },{
-      "name": "setpriv",
-      "type": "setpriv",
-      "ricardian_contract": ""
-    },{
-      "name": "unlinkauth",
-      "type": "unlinkauth",
-      "ricardian_contract": ""
-    },{
-      "name": "unlocktokens",
-      "type": "unlocktokens",
-      "ricardian_contract": ""
-    },{
-      "name": "unregprod",
-      "type": "unregprod",
-      "ricardian_contract": ""
-    },{
-      "name": "unregproxy",
-      "type": "unregproxy",
-      "ricardian_contract": ""
-    },{
-      "name": "updateauth",
-      "type": "updateauth",
-      "ricardian_contract": ""
-    },{
-      "name": "updatepower",
-      "type": "updatepower",
-      "ricardian_contract": ""
-    },{
-      "name": "updlbpclaim",
-      "type": "updlbpclaim",
-      "ricardian_contract": ""
-    },{
-      "name": "updlocked",
-      "type": "updlocked",
-      "ricardian_contract": ""
-    },{
-      "name": "updtrevision",
-      "type": "updtrevision",
-      "ricardian_contract": ""
-    },{
-      "name": "voteproducer",
-      "type": "voteproducer",
-      "ricardian_contract": ""
-    },{
-      "name": "voteproxy",
-      "type": "voteproxy",
-      "ricardian_contract": ""
-    }
-  ],
-  "tables": [{
-      "name": "abihash",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "abi_hash"
-    },{
-      "name": "global",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "eosio_global_state"
-    },{
-      "name": "global2",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "eosio_global_state2"
-    },{
-      "name": "global3",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "eosio_global_state3"
-    },{
-      "name": "lockedtokens",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "locked_token_holder_info"
-    },{
-      "name": "locktokens",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "locked_tokens_info"
-    },{
-      "name": "producers",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "producer_info"
-    },{
-      "name": "topprods",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "top_prod_info"
-    },{
-      "name": "userres",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "user_resources"
-    },{
-      "name": "voters",
-      "index_type": "i64",
-      "key_names": [],
-      "key_types": [],
-      "type": "voter_info"
-    }
-  ],
-  "ricardian_clauses": [],
-  "error_messages": [],
-  "abi_extensions": [],
-  "variants": []
-}
-
-fioaddress_abi = {
-  "version": "eosio::abi/1.0",
-  "types": [],
-  "structs": [{
-      "name": "fioname",
-      "base": "",
-      "fields": [{
-          "name": "id",
-          "type": "uint64"
-        },{
-          "name": "name",
-          "type": "string"
-        },{
-          "name": "namehash",
-          "type": "uint128"
-        },{
-          "name": "domain",
-          "type": "string"
-        },{
-          "name": "domainhash",
-          "type": "uint128"
-        },{
-          "name": "expiration",
-          "type": "uint64"
-        },{
-          "name": "owner_account",
-          "type": "name"
-        },{
-          "name": "addresses",
-          "type": "tokenpubaddr[]"
-        },{
-          "name": "bundleeligiblecountdown",
-          "type": "uint64"
-        }
-      ]
-    },{
-      "name": "domain",
-      "base": "",
-      "fields": [{
-          "name": "id",
-          "type": "uint64"
-        },{
-          "name": "name",
-          "type": "string"
-        },{
-          "name": "domainhash",
-          "type": "uint128"
-        },{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "is_public",
-          "type": "uint8"
-        },{
-          "name": "expiration",
-          "type": "uint64"
-        }
-      ]
-    },{
-      "name": "eosio_name",
-      "base": "",
-      "fields": [{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "clientkey",
-          "type": "string"
-        },{
-          "name": "keyhash",
-          "type": "uint128"
-        }
-      ]
-    },{
-      "name": "regaddress",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "owner_fio_public_key",
-          "type": "string"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "tpid",
-          "type": "string"
-        }
-      ]
-    },{
-      "name": "tokenpubaddr",
-      "base": "",
-      "fields": [{
-          "name": "token_code",
-          "type": "string"
-        },{
-          "name": "chain_code",
-          "type": "string"
-        },{
-          "name": "public_address",
-          "type": "string"
-        }
-      ]
-    },{
-      "name": "addaddress",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "public_addresses",
-          "type": "tokenpubaddr[]"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "tpid",
-          "type": "string"
-        }
-      ]
-    },{
-      "name": "remaddress",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "public_addresses",
-          "type": "tokenpubaddr[]"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "tpid",
-          "type": "string"
-        }
-      ]
-    },{
-      "name": "remalladdr",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "tpid",
-          "type": "string"
-        }
-      ]
-    },{
-      "name": "regdomain",
-      "base": "",
-      "fields": [{
-          "name": "fio_domain",
-          "type": "string"
-        },{
-          "name": "owner_fio_public_key",
-          "type": "string"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "tpid",
-          "type": "string"
-        }
-      ]
-    },{
-      "name": "renewdomain",
-      "base": "",
-      "fields": [{
-          "name": "fio_domain",
-          "type": "string"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "tpid",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "renewaddress",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "tpid",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "setdomainpub",
-      "base": "",
-      "fields": [{
-          "name": "fio_domain",
-          "type": "string"
-        },{
-          "name": "is_public",
-          "type": "int8"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "tpid",
-          "type": "string"
-        }
-      ]
-    },{
-      "name": "burnexpired",
-      "base": "",
-      "fields": []
-    },{
-      "name": "decrcounter",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "step",
-          "type": "int32"
-        }
-      ]
-    },{
-      "name": "bind2eosio",
-      "base": "",
-      "fields": [{
-          "name": "account",
-          "type": "name"
-        },{
-          "name": "client_key",
-          "type": "string"
-        },{
-          "name": "existing",
-          "type": "bool"
-        }
-      ]
-    },{
-      "name": "burnaddress",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "tpid",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        }
-      ]
-    },{
-      "name": "xferdomain",
-      "base": "",
-      "fields": [{
-          "name": "fio_domain",
-          "type": "string"
-        },{
-          "name": "new_owner_fio_public_key",
-          "type": "string"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "tpid",
-          "type": "string"
-        }
-      ]
-    },{
-      "name": "xferaddress",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "new_owner_fio_public_key",
-          "type": "string"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "actor",
-          "type": "name"
-        },{
-          "name": "tpid",
-          "type": "string"
-        }
-      ]
-    },{
-      "name": "addbundles",
-      "base": "",
-      "fields": [{
-          "name": "fio_address",
-          "type": "string"
-        },{
-          "name": "bundle_sets",
-          "type": "int64"
-        },{
-          "name": "max_fee",
-          "type": "int64"
-        },{
-          "name": "tpid",
-          "type": "string"
-        },{
-          "name": "actor",
-          "type": "name"
-        }
-      ]
-    }
-  ],
-  "actions": [{
-      "name": "decrcounter",
-      "type": "decrcounter",
-      "ricardian_contract": ""
-    },{
-      "name": "regaddress",
-      "type": "regaddress",
-      "ricardian_contract": ""
-    },{
-      "name": "addaddress",
-      "type": "addaddress",
-      "ricardian_contract": ""
-    },{
-      "name": "remaddress",
-      "type": "remaddress",
-      "ricardian_contract": ""
-    },{
-      "name": "remalladdr",
-      "type": "remalladdr",
-      "ricardian_contract": ""
-    },{
-      "name": "regdomain",
-      "type": "regdomain",
-      "ricardian_contract": ""
-    },{
-      "name": "renewdomain",
-      "type": "renewdomain",
-      "ricardian_contract": ""
-    },{
-      "name": "renewaddress",
-      "type": "renewaddress",
-      "ricardian_contract": ""
-    },{
-      "name": "burnexpired",
-      "type": "burnexpired",
-      "ricardian_contract": ""
-    },{
-      "name": "setdomainpub",
-      "type": "setdomainpub",
-      "ricardian_contract": ""
-    },{
-      "name": "bind2eosio",
-      "type": "bind2eosio",
-      "ricardian_contract": ""
-    },{
-      "name": "burnaddress",
-      "type": "burnaddress",
-      "ricardian_contract": ""
-    },{
-      "name": "xferdomain",
-      "type": "xferdomain",
-      "ricardian_contract": ""
-    },{
-      "name": "xferaddress",
-      "type": "xferaddress",
-      "ricardian_contract": ""
-    },{
-      "name": "addbundles",
-      "type": "addbundles",
-      "ricardian_contract": ""
-    }
-  ],
-  "tables": [{
-      "name": "fionames",
-      "index_type": "i64",
-      "key_names": [
-        "id"
-      ],
-      "key_types": [
-        "string"
-      ],
-      "type": "fioname"
-    },{
-      "name": "domains",
-      "index_type": "i64",
-      "key_names": [
-        "id"
-      ],
-      "key_types": [
-        "string"
-      ],
-      "type": "domain"
-    },{
-      "name": "accountmap",
-      "index_type": "i64",
-      "key_names": [
-        "account"
-      ],
-      "key_types": [
-        "uint64"
-      ],
-      "type": "eosio_name"
-    }
-  ],
-  "ricardian_clauses": [],
-  "error_messages": [],
-  "abi_extensions": [],
-  "variants": []
-}
 
 /* BEGIN ANCHOR METHODS */
 
