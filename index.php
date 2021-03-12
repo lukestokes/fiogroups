@@ -295,14 +295,23 @@ $explorer_url = "https://fio-test.bloks.io/";
             if (count($groups) == 0 || $action == "show_create_group") {
             ?>
               <h1>Create Group</h1>
-              <ol>
-                <li>Generate a new FIO public key.</li>
-                <li>Send FIO to the new account.</li>
-                <li>The FIO Groups will then register the FIO Domain you want and assign you as the first admin.</li>
-              </ol>
+              <p>You will be asked to sign two transactions. The first transaction will:</p>
+                <ol>
+                  <li>Register your group FIO Domain.</li>
+                  <li>Register your FIO Name as the first FIO Address at your group domain.</li>
+                  <li>Send 10 FIO to a new group account.</li>
+                </ol>
+              <p>
+                At this point the permissions on the new group account will be updated so that you are the admin.<br />
+                You will then be asked to sign another transaction to transfer the domain to the new group.<br />
+                After this is completed, your group will be saved into the sytem.
+              </p>
               <p>
                 Create Domain Fee: <span id="create_domain_fee"><?php print $Util->SUFToFIO($Util->getRegisterDomainFee()); ?> FIO</span><br />
                 Transfer Token Fee: <span id="transfer_tokens_fee"><?php print $Util->SUFToFIO($Util->getTransferFee()); ?> FIO</span><br />
+              </p>
+              <p>
+                Leave the Group Fio Public Key and Group Account fields blank as they were be filled in automatically for you.
               </p>
               <form method="POST" id="create_group">
                 <input type="hidden" name="action" value="create_group">
