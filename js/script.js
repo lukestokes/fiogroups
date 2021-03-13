@@ -14,10 +14,13 @@ $(document).ready(function(){
       alert("Please login using your FIO account and Anchor Wallet by Greymass.");
       return;
     }
-
-    // TOOD: do validation on the form data
-    // 1. make sure $("#domain").val() is a valid domain format
-    // 2. make sure $("#creator_member_name").val() is a valid name format
+    const regex = new RegExp('^(?:(?=.{3,64}$)[a-zA-Z0-9]{1}(?:(?!-{2,}))[a-zA-Z0-9-]*(?:(?<!-))@[a-zA-Z0-9]{1}(?:(?!-{2,}))[a-zA-Z0-9-]*(?:(?<!-))$)');
+    domain = $("#domain").val();
+    creator_member_name = $("#creator_member_name").val();
+    if (!regex.test(creator_member_name+'@'+domain)) {
+      alert("Please enter a value name and domain. Valid characters include: a-z 0-9 -");
+      return;
+    }
 
     privKey = AnchorLink.PrivateKey.generate('K1');
     pubKey = privKey.toPublic();
@@ -44,16 +47,36 @@ $(document).ready(function(){
 });
 
 async function createGroupOnChain(keyPair, actor, domain, name) {
+  alert("This may take a few moments to process. Please keep your browser window open and don't refresh until the process is complete.");
+
   // first see if the domain is available
   const is_available = await isNameAvailable(domain);
   if (!is_available) {
     alert("The domain " + domain + " has already been taken. Please try a different domain.");
     return ;
   }
+  const fio_public_key = session.publicKey.toLegacyString("FIO");
+  const current_balance = await getFIOBalance(fio_public_key);
   const register_fio_domain_fee = await getFIOChainFee('register_fio_domain');
   const register_fio_address_fee = await getFIOChainFee('register_fio_address');
   const transfer_tokens_pub_key_fee = await getFIOChainFee('transfer_tokens_pub_key');
   const transfer_fio_domain_fee = await getFIOChainFee('transfer_fio_domain');
+
+  total_to_charge = FIOToSUF(10);
+  total_to_charge += register_fio_domain_fee
+  total_to_charge += register_fio_address_fee
+  total_to_charge += transfer_tokens_pub_key_fee
+  total_to_charge += transfer_fio_domain_fee
+
+  if (total_to_charge > FIOToSUF(current_balance)) {
+    alert("You need " + SUFToFIO(total_to_charge) + " FIO to create a group but only have " + current_balance);
+    return ;
+  }
+  confirm_cost = confirm("Are you ready to spend " + SUFToFIO(total_to_charge) + " FIO to create your group?");
+  if (!confirm_cost) {
+    return ;
+  }
+
   const tpid = 'luke@stokes'
   const domain_action = {
     authorization: [session.auth],
@@ -61,7 +84,7 @@ async function createGroupOnChain(keyPair, actor, domain, name) {
     name: 'regdomain',
     data: {
       fio_domain: domain,
-      owner_fio_public_key: session.publicKey.toLegacyString("FIO"),
+      owner_fio_public_key: fio_public_key,
       max_fee: register_fio_domain_fee,
       actor: session.auth.actor,
       tpid: tpid
@@ -73,7 +96,7 @@ async function createGroupOnChain(keyPair, actor, domain, name) {
     name: 'regaddress',
     data: {
       fio_address: name + "@" + domain,
-      owner_fio_public_key: session.publicKey.toLegacyString("FIO"),
+      owner_fio_public_key: fio_public_key,
       max_fee: register_fio_address_fee,
       actor: session.auth.actor,
       tpid: tpid
@@ -87,7 +110,7 @@ async function createGroupOnChain(keyPair, actor, domain, name) {
     name: 'regaddress',
     data: {
       fio_address: "treasury@" + domain,
-      owner_fio_public_key: session.publicKey.toLegacyString("FIO"),
+      owner_fio_public_key: fio_public_key,
       max_fee: register_fio_address_fee,
       actor: session.auth.actor,
       tpid: tpid
@@ -106,31 +129,30 @@ async function createGroupOnChain(keyPair, actor, domain, name) {
         tpid: tpid
     }
   }
-  const actions_result = await session.transact(
-    {
-      //actions: [domain_action,address_action,treasury_address_action,transfer_action]
-      actions: [domain_action,address_action,transfer_action]
-    }
-  );
-  /*
-  if (!actions_result.transaction_id) {
-    console.log(actions_result);
+  try {
+    const actions_result = await session.transact(
+      {
+        //actions: [domain_action,address_action,treasury_address_action,transfer_action]
+        actions: [domain_action,address_action,transfer_action]
+      }
+    );
+    console.log("Domain created, address created, tokens transfered")
+    console.log(actions_result.transaction_id);
+  } catch (err) {
+    console.log(err);
+    alert("There was an error setting up your group. Please make sure you have enough FIO Tokens. Check the console for details.");
     return ;
   }
-  */
-  console.log("Domain created, address created, tokens transfered")
-  console.log(actions_result.transaction_id);
 
-  const permission_update_result = await updatePermissionsOfNewlyCreatedAcccount(keyPair, actor);
-  /*
-  if (!permission_update_result.transaction_id) {
-    console.log(permission_update_result);
-    alert("There was an error setting up your group. Please make sure you have enough FIO Tokens. Check the console for details.")
+  try {
+    const permission_update_result = await updatePermissionsOfNewlyCreatedAcccount(keyPair, actor);
+    console.log("Permissions updated for new account at " + keyPair.public)
+    console.log(permission_update_result.transaction_id);
+  } catch (err) {
+    console.log(err);
+    alert("There was an error updating permissions for your group. Please make sure you have enough FIO Tokens. Check the console for details.");
     return ;
   }
-  */
-  console.log("Permissions updated for new account at " + keyPair.public)
-  console.log(permission_update_result.transaction_id);
 
   const transfer_domain_action = {
     authorization: [session.auth],
@@ -158,21 +180,22 @@ async function createGroupOnChain(keyPair, actor, domain, name) {
     }
   }
   */
-  const transfer_domain_result = await session.transact(
-    {
-      //actions: [transfer_domain_action, transfer_treasury_action]
-      action: transfer_domain_action
-    }
-  );
-  /*
-  if (!transfer_domain_result.transaction_id) {
-    alert("There was an error transferring your domain. Please make sure you have enough FIO Tokens. Check the console for details.")
-    console.log(transfer_domain_result);
+
+  try {
+    const transfer_domain_result = await session.transact(
+      {
+        //actions: [transfer_domain_action, transfer_treasury_action]
+        action: transfer_domain_action
+      }
+    );
+    console.log("Domain transfered to " + keyPair.public)
+    console.log(transfer_domain_result.transaction_id);
+  } catch (err) {
+    console.log(err);
+    alert("There was an error transferring your domain. Please make sure you have enough FIO Tokens. Check the console for details.");
     return ;
   }
-  */
-  console.log("Domain transfered to " + keyPair.public)
-  console.log(transfer_domain_result.transaction_id);
+
   $('#create_group').submit();
 }
 
@@ -214,6 +237,10 @@ async function getFIOChainFee(endpoint) {
 async function isNameAvailable(name) {
   const result = await chainGet('avail_check',{fio_name: name});
   return (result.is_registered == 0);
+}
+async function getFIOBalance(fio_public_key) {
+  const result = await chainGet('get_fio_balance',{fio_public_key: fio_public_key});
+  return SUFToFIO(result.balance);
 }
 
 async function updatePermissionsOfNewlyCreatedAcccount(keyPair, actor) {
