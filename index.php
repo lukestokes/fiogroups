@@ -4,6 +4,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 //$nodeUrl = 'https://fio.greymass.com';
 $chainId = 'b20901380af44ef59c5918439a1f9a41d83669020319a80574b804a5f95cbd7e';
 $nodeUrl = 'https://testnet.fioprotocol.io';
+//$nodeUrl = 'https://testnet.fio.eosdetroit.io';
 //$client = new GuzzleHttp\Client(['base_uri' => 'http://fio.greymass.com']);
 $client = new GuzzleHttp\Client(['base_uri' => $nodeUrl]);
 include "header.php";
@@ -221,7 +222,7 @@ $explorer_url = "https://fio-test.bloks.io/";
               foreach ($members as $Member) {
                 $controls = array(
                   'account' => '$account [<a href="?action=register_candidate&domain=$domain&account=$account">Register Candidate</a>] [<a href="?action=deactivate_member&domain=$domain&account=$account">Deactivate</a>]',
-                  'member_name' => '<a href="' . $explorer_url . 'address/$member_name@$domain">$member_name</a>',
+                  'member_name' => '<a href="' . $explorer_url . 'address/$member_name@$domain" target="blank_">$member_name</a>',
                 );
                 if ($is_admin) {
                   $controls['account'] .= ' [<a href="?action=disable_member&domain=$domain&account=$account">Disable</a>]';
@@ -244,7 +245,8 @@ $explorer_url = "https://fio-test.bloks.io/";
                 // TODO: change this to be a javascript form POST, not a get. Protect against CSRF.
                 $controls = array(
                   'account' => '$account [<a href="?action=approve_pending_member&domain=$domain&account=$account">Approve</a>]',
-                  'application_date' => '<a href="' . $explorer_url . 'transaction/$membership_payment_transaction_id">$application_date</a>'
+                  'application_date' => '<a href="' . $explorer_url . 'transaction/$membership_payment_transaction_id" target="blank_">$application_date</a>',
+                  'membership_proposal_name' => '<a href="' . $explorer_url . 'msig/$account/$membership_proposal_name" target="blank_">$membership_proposal_name</a>',
                 );
                 $PendingMember->print('table',$controls);
               }
@@ -257,14 +259,32 @@ $explorer_url = "https://fio-test.bloks.io/";
             <h1>Apply</h1>
             <form method="POST" id="apply_to_group">
               <input type="hidden" name="action" value="apply_to_group">
-              <input type="hidden" name="domain" value="<?php print $domain; ?>">
-              <input type="hidden" name="membership_payment_transaction_id" value="1234567890">
+              <input type="hidden" id="domain" name="domain" value="<?php print $domain; ?>">
+              <input type="hidden" id="group_fio_public_key" name="group_fio_public_key" value="<?php print $Group->group_fio_public_key; ?>">
+              <input type="hidden" id="group_account" name="group_account" value="<?php print $Group->group_account; ?>">
+              <input type="hidden" id="member_application_fee" name="member_application_fee" value="<?php print $Group->member_application_fee; ?>">
+              <input type="hidden" id="membership_payment_transaction_id" name="membership_payment_transaction_id" value="">
+              <input type="hidden" id="membership_proposal_name" name="membership_proposal_name" value="">
                 <?php
+                /*
                 $PendingMember = $Factory->new("PendingMember");
                 print $PendingMember->formHTML();
+                */
                 ?>
+              <div class="col-sm-2">
+                  <div class="form-group">
+                      <label>Member Name Requested (@<?php print $domain; ?>)</label>
+                      <input type="text" name="member_name_requested" id="member_name_requested" class="form-control" value="">
+                  </div>
+              </div>
+              <div class="col-sm-2">
+                  <div class="form-group">
+                    <label for="bio">Biography (tell us about yourself)</label>
+                    <textarea class="form-control" name="bio" id="bio" rows="3"></textarea>
+                  </div>
+              </div>
               <div class="form-group">
-                <button type="submit" class="btn btn-primary">Apply for Membership</button>
+                <button type="button" id="apply_to_group_button" class="btn btn-primary">Apply for Membership</button>
               </div>
             </form>
             <?php

@@ -355,7 +355,8 @@ create fio address in that account
 
         // TODO: adjust the permissions of the group so that $creator_account is the owner
         $bio = "I am Satoshi.";
-        $Group->apply($creator_account, $creator_member_name, $bio, $membership_payment_transaction_id);
+        $proposal_name = "creator";
+        $Group->apply($creator_account, $creator_member_name, $bio, $membership_payment_transaction_id, $proposal_name);
         $Group->approve($creator_account);
         $members              = $Group->getMembers();
         $members[0]->is_admin = true;
@@ -428,7 +429,7 @@ create fio address in that account
         return ($this->member_application_fee + $fee);
     }
 
-    public function apply($account, $member_name_requested, $bio, $membership_payment_transaction_id)
+    public function apply($account, $member_name_requested, $bio, $membership_payment_transaction_id, $membership_proposal_name)
     {
         $PendingMember = $this->factory->new("PendingMember");
         // TODO: validate $membership_payment_transaction_id
@@ -460,6 +461,7 @@ create fio address in that account
         $PendingMember->bio                               = $bio;
         $PendingMember->application_date                  = time();
         $PendingMember->membership_payment_transaction_id = $membership_payment_transaction_id;
+        $PendingMember->membership_proposal_name          = $membership_proposal_name;
         $PendingMember->save();
         return $PendingMember;
     }
@@ -701,6 +703,7 @@ class PendingMember extends BaseObject
      * NEW
      */
     public $membership_payment_transaction_id;
+    public $membership_proposal_name;
     public $non_printable_fields = array('domain', 'membership_payment_transaction_id');
 
 }

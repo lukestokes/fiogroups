@@ -1,21 +1,22 @@
-<?php declare(strict_types=1);
+<?php declare (strict_types = 1);
 use PHPUnit\Framework\TestCase;
 
 final class MemberTest extends TestCase
 {
     public $factory;
     public $group;
-    public $group_set_up = false;
-    public $fio_public_key = "FIO7EwPGwmYGZF6fkvBNzbzYegj2q2dAZsp292P9oxkK8yjso5uDq";
-    public $group_account = "pmz3qk1c4jqj";
-    public $domain = "testing";
-    public $creator_account = "loggedinuser";
-    public $creator_member_name = "satoshi@testing";
+    public $group_set_up           = false;
+    public $fio_public_key         = "FIO7EwPGwmYGZF6fkvBNzbzYegj2q2dAZsp292P9oxkK8yjso5uDq";
+    public $group_account          = "pmz3qk1c4jqj";
+    public $domain                 = "testing";
+    public $creator_account        = "loggedinuser";
+    public $creator_member_name    = "satoshi@testing";
     public $member_application_fee = 10 * 1000000000;
-    public $account = "wntoh3fogzcj";
-    public $fio_name = "test";
-    public $bio = "Some cool bio, yo.";
-    public $transaction_id = "9255cd7196e6d4003a3352928f3fec63cdf2a9ae7834512f932e95363f6e5408";
+    public $account                = "wntoh3fogzcj";
+    public $fio_name               = "test";
+    public $bio                    = "Some cool bio, yo.";
+    public $transaction_id         = "9255cd7196e6d4003a3352928f3fec63cdf2a9ae7834512f932e95363f6e5408";
+    public $proposal_name          = "apply12345";
 
     public static function setUpBeforeClass(): void
     {
@@ -31,9 +32,10 @@ final class MemberTest extends TestCase
         $this->createGroupIfNeeded();
     }
 
-    public function createGroupIfNeeded() {
-        $Group = $this->factory->new("Group");
-        $group_data = $Group->dataStore->findOneBy(["domain","=",$this->domain]);
+    public function createGroupIfNeeded()
+    {
+        $Group      = $this->factory->new("Group");
+        $group_data = $Group->dataStore->findOneBy(["domain", "=", $this->domain]);
         if (is_null($group_data)) {
             $this->group = $Group->create(
                 $this->creator_account,
@@ -51,7 +53,7 @@ final class MemberTest extends TestCase
 
     public function testCanApplyForMembership(): void
     {
-        $PendingMember = $this->group->apply($this->account, $this->fio_name, $this->bio, $this->transaction_id);
+        $PendingMember = $this->group->apply($this->account, $this->fio_name, $this->bio, $this->transaction_id, $this->proposal_name);
         $this->assertInstanceOf(
             'PendingMember',
             $PendingMember
@@ -62,14 +64,14 @@ final class MemberTest extends TestCase
     {
         $this->expectException(Exception::class);
         $this->expectExceptionMessage("wntoh3fogzcj is already a pending member for testing.");
-        $PendingMember = $this->group->apply($this->account, $this->fio_name, $this->bio, $this->transaction_id);
+        $PendingMember = $this->group->apply($this->account, $this->fio_name, $this->bio, $this->transaction_id, $this->proposal_name);
     }
 
     public function testCanNotApplyUsingAPendingName(): void
     {
         $this->expectException(Exception::class);
         $this->expectExceptionMessage("test@testing has already been requested by a pending member of testing.");
-        $PendingMember = $this->group->apply($this->account."1", $this->fio_name, $this->bio, $this->transaction_id);
+        $PendingMember = $this->group->apply($this->account . "1", $this->fio_name, $this->bio, $this->transaction_id, $this->proposal_name);
     }
 
     public function testCanApprovePendingMembership(): void
@@ -85,14 +87,14 @@ final class MemberTest extends TestCase
     {
         $this->expectException(Exception::class);
         $this->expectExceptionMessage("test@testing has already been claimed by an existing member of testing.");
-        $PendingMember = $this->group->apply($this->account."1", $this->fio_name, $this->bio, $this->transaction_id);
+        $PendingMember = $this->group->apply($this->account . "1", $this->fio_name, $this->bio, $this->transaction_id, $this->proposal_name);
     }
 
     public function testCanNotApplyForMembershipIfAlreadyAMember(): void
     {
         $this->expectException(Exception::class);
         $this->expectExceptionMessage("wntoh3fogzcj is already a member of testing.");
-        $PendingMember = $this->group->apply($this->account, $this->fio_name . "1", $this->bio, $this->transaction_id);
+        $PendingMember = $this->group->apply($this->account, $this->fio_name . "1", $this->bio, $this->transaction_id, $this->proposal_name);
     }
 
     public function testCanNotApproveNonExistantMember(): void
@@ -104,12 +106,12 @@ final class MemberTest extends TestCase
 
     public function testCanUpdateBio(): void
     {
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
         $Member->read();
         $this->assertEquals($Member->bio, $this->bio);
         $new_bio = "This is my new bio";
-        $this->group->updateBio($this->account,$new_bio);
+        $this->group->updateBio($this->account, $new_bio);
         $Member->read();
         $this->assertEquals($Member->bio, $new_bio);
     }
@@ -118,12 +120,12 @@ final class MemberTest extends TestCase
     {
         $this->expectException(Exception::class);
         $this->expectExceptionMessage("wntoh3fogzcj1 is not a member of testing.");
-        $this->group->updateBio($this->account . "1","foo");
+        $this->group->updateBio($this->account . "1", "foo");
     }
 
     public function testCanVerifyMember(): void
     {
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
         $Member->read();
         $Member->last_verified_date = time() - 100;
@@ -152,8 +154,8 @@ final class MemberTest extends TestCase
     public function testCanRegisterCandidate(): void
     {
         $AdminCandidate = $this->factory->new("AdminCandidate");
-        $criteria = ["account","=",$this->account];
-        $found = $AdminCandidate->read($criteria);
+        $criteria       = ["account", "=", $this->account];
+        $found          = $AdminCandidate->read($criteria);
         $this->assertFalse($found);
         $this->group->registerCandidate($this->account);
         $found = $AdminCandidate->read($criteria);
@@ -176,11 +178,11 @@ final class MemberTest extends TestCase
 
     public function testCanPrint(): void
     {
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
         $Member->read();
-        $date_added = date("Y-m-d H:i:s",$Member->date_added);
-        $last_verified_date = date("Y-m-d H:i:s",$Member->last_verified_date);
+        $date_added         = date("Y-m-d H:i:s", $Member->date_added);
+        $last_verified_date = date("Y-m-d H:i:s", $Member->last_verified_date);
         ob_start();
         $Member->print("table_header");
         $Member->print("table");
@@ -211,7 +213,7 @@ final class MemberTest extends TestCase
 <td>2</td>
 </tr>
 ';
-        $this->assertEquals($expected,$output);
+        $this->assertEquals($expected, $output);
     }
 
     public function testCanNotRemoveAnActiveMember(): void
@@ -230,7 +232,7 @@ final class MemberTest extends TestCase
 
     public function testCanNotDeactivateAnAdmin(): void
     {
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
         $Member->read();
         $Member->is_admin = true;
@@ -249,13 +251,13 @@ final class MemberTest extends TestCase
 
     public function testCanDeactivateAMember(): void
     {
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
         $Member->read();
         $Member->is_admin = false;
         $Member->save();
         $this->group->deactivate($this->account);
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
         $Member->read();
         $this->assertFalse($Member->is_active);
@@ -271,7 +273,7 @@ final class MemberTest extends TestCase
     public function testCanActivateMember(): void
     {
         $this->group->activate($this->account);
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
         $Member->read();
         $this->assertTrue($Member->is_active);
@@ -287,7 +289,7 @@ final class MemberTest extends TestCase
     public function testCanDisableMember(): void
     {
         $this->group->disable($this->account);
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
         $Member->read();
         $this->assertFalse($Member->is_active);
@@ -311,28 +313,28 @@ final class MemberTest extends TestCase
     public function testCanEnableDisableMember(): void
     {
         $this->group->enable($this->account);
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
         $Member->read();
         $this->assertFalse($Member->is_disabled);
         $this->assertFalse($Member->is_active);
         $Member->is_disabled = true;
-        $Member->is_active = false;
+        $Member->is_active   = false;
         $Member->save();
     }
 
     public function testCanRemoveDisabledMember(): void
     {
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
-        $found = $Member->read();
+        $found       = $Member->read();
         $this->assertTrue($found);
         $Member->is_active = false;
         $Member->save();
         $this->group->removeMember($this->account);
-        $Member = $this->factory->new("Member");
+        $Member      = $this->factory->new("Member");
         $Member->_id = 2;
-        $found = $Member->read();
+        $found       = $Member->read();
         $this->assertFalse($found);
     }
 

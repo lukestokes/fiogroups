@@ -9,6 +9,202 @@ $(document).ready(function(){
   };
   date_input.datepicker(options);
 
+  $('#apply_to_group_button').on('click', function(e) {
+    if (!link) {
+      alert("Please login using your FIO account and Anchor Wallet by Greymass.");
+      return;
+    }
+    const regex = new RegExp('^(?:(?=.{3,64}$)[a-zA-Z0-9]{1}(?:(?!-{2,}))[a-zA-Z0-9-]*(?:(?<!-))@[a-zA-Z0-9]{1}(?:(?!-{2,}))[a-zA-Z0-9-]*(?:(?<!-))$)');
+    domain = $("#domain").val();
+    member_name_requested = $("#member_name_requested").val();
+    if (!regex.test(member_name_requested+'@'+domain)) {
+      alert("Please enter a valid name and domain. Valid characters include: a-z 0-9 -");
+      return;
+    }
+    member_application_fee = $("#member_application_fee").val();
+    if (isNaN(member_application_fee)) {
+      member_application_fee = 1;
+    }
+    group_fio_public_key = $("#group_fio_public_key").val();
+    group_account = $("#group_account").val();
+
+    applyToGroup(
+      member_application_fee,
+      member_name_requested,
+      domain,
+      group_fio_public_key,
+      group_account
+      );
+  });
+
+async function getDomainOwner(domain) {
+  const encoded = new TextEncoder().encode(domain)
+  // get a sha-1 hash of the value
+  hashHex = ''
+  hash = await crypto.subtle.digest("SHA-1", encoded)
+  const hashArray = Array.from(new Uint8Array(hash)).slice(0,16).reverse()
+  // convert to a string with '0x' prefix
+  hashHex = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+  const params = {
+    code: 'fio.address',
+    scope: 'fio.address',
+    table: 'domains',
+    lower_bound: hashHex,
+    upper_bound: hashHex,
+    key_type: 'i128',
+    index_position: 4,
+    json: true
+  }
+  const result = await chainGet('get_table_rows',params);
+  owner = "";
+  if (result && result.rows[0] && result.rows[0].account) {
+    owner = result.rows[0].account;
+  }
+  return owner;
+}
+
+function getProposalName() {
+  proposal_name = ""
+  for (var i = 0; i < 7; i++) {
+    proposal_name = proposal_name + "" + (Math.floor(Math.random() * 5) + 1);
+  }
+  return "apply" + proposal_name;
+}
+
+async function applyToGroup(
+    member_application_fee,
+    member_name_requested,
+    domain,
+    group_fio_public_key,
+    group_account
+  ) {
+  alert("This may take a few moments to process. Please keep your browser window open and don't refresh until the process is complete.");
+
+  const is_available = await isNameAvailable(member_name_requested + "@" + domain);
+  if (!is_available) {
+    alert("The name " + member_name_requested + "@" + domain + " has already been taken. Please try a different name.");
+    return ;
+  }
+  const fio_public_key = session.publicKey.toLegacyString("FIO");
+  const tpid = 'luke@stokes'
+  const current_balance = await getFIOBalance(fio_public_key);
+  const register_fio_address_fee = await getFIOChainFee('register_fio_address');
+  const transfer_tokens_pub_key_fee = await getFIOChainFee('transfer_tokens_pub_key');
+  const msig_propose_fee = await getFIOChainFee('msig_propose');
+
+  total_to_charge = FIOToSUF(member_application_fee);
+  total_to_charge += register_fio_address_fee
+  total_to_charge += transfer_tokens_pub_key_fee
+  total_to_charge += msig_propose_fee
+
+  if (total_to_charge > FIOToSUF(current_balance)) {
+    alert("You need " + SUFToFIO(total_to_charge) + " FIO to apply for membership but only have " + current_balance);
+    return ;
+  }
+  confirm_cost = confirm("Are you ready to spend " + SUFToFIO(total_to_charge) + " FIO to apply for membership to this group?");
+  confirm_cost = true;
+  if (!confirm_cost) {
+    return ;
+  }
+
+  const group_account_from_domain = await getDomainOwner(domain);
+
+  if (group_account_from_domain != group_account) {
+    alert(group_account + " does not match the owner of the group " + group_account_from_domain);
+    return ;
+  }
+
+  const group_account_info = await chainGet('get_account',{account_name: group_account});
+  required_auths = [];
+  for (i = 0; i < group_account_info.permissions.length; i++) {
+    if (group_account_info.permissions[i].perm_name == "active") {
+      for (j = 0; j < group_account_info.permissions[i].required_auth.accounts.length; j++) {
+        required_auths[required_auths.length] = {
+          actor: group_account_info.permissions[i].required_auth.accounts[j].permission.actor,
+          permission: group_account_info.permissions[i].required_auth.accounts[j].permission.permission
+        };
+      }
+    }
+  }
+
+  const fioaddress_abi = await getABI('fio.address');
+  const address_action = AnchorLink.Action.from({
+    authorization: [{actor: group_account, permission: 'active'}],
+    account: 'fio.address',
+    name: 'regaddress',
+    data: {
+      fio_address: member_name_requested + "@" + domain,
+      owner_fio_public_key: fio_public_key,
+      max_fee: register_fio_address_fee,
+      actor: group_account,
+      tpid: tpid
+    }
+  },fioaddress_abi);
+
+  const info = await link.client.v1.chain.get_info()
+  header = info.getTransactionHeader()
+
+  const expiration_days_in_seconds = (60 * 60 * 24 * 7) // seconds, minutes, hours, days
+
+  header.expiration = new AnchorLink.TimePointSec(AnchorLink.UInt32.from(header.expiration.value.value + expiration_days_in_seconds));
+
+  const transaction = AnchorLink.Transaction.from({
+      ...header,
+      actions: [address_action],
+  })
+
+  const eosiomsig_abi = await getABI('eosio.msig');
+  const membership_proposal_name = getProposalName();
+
+  const msig_action = AnchorLink.Action.from({
+    account: 'eosio.msig',
+    name: 'propose',
+    authorization: [session.auth],
+    data: {
+      proposer: session.auth.actor,
+      proposal_name: membership_proposal_name,
+      requested: required_auths,
+      max_fee: msig_propose_fee,
+      trx: transaction
+    },
+  },eosiomsig_abi);
+
+  const transfer_action = {
+    authorization: [session.auth],
+    account: 'fio.token',
+    name: 'trnsfiopubky',
+    data: {
+        payee_public_key: group_fio_public_key,
+        amount: total_to_charge,
+        max_fee: transfer_tokens_pub_key_fee,
+        actor: session.auth.actor,
+        tpid: tpid
+    }
+  }
+
+  try {
+    const actions_result = await session.transact(
+      {
+        actions: [transfer_action, msig_action]
+      }
+    );
+    console.log("done")
+    console.log(actions_result.processed.id);
+
+    $("#membership_payment_transaction_id").val(actions_result.processed.id);
+    $("#membership_proposal_name").val(membership_proposal_name);
+
+  } catch (err) {
+    console.log(err);
+    alert("There was an error apply to this group. Please make sure you have enough FIO Tokens. Check the console for details.");
+    return ;
+  }
+
+  $('#apply_to_group').submit();
+}
+
+
   $('#create_group_button').on('click', function(e) {
     if (!link) {
       alert("Please login using your FIO account and Anchor Wallet by Greymass.");
@@ -18,7 +214,7 @@ $(document).ready(function(){
     domain = $("#domain").val();
     creator_member_name = $("#creator_member_name").val();
     if (!regex.test(creator_member_name+'@'+domain)) {
-      alert("Please enter a value name and domain. Valid characters include: a-z 0-9 -");
+      alert("Please enter a valid name and domain. Valid characters include: a-z 0-9 -");
       return;
     }
 
@@ -206,12 +402,6 @@ function FIOToSUF(amount) {
 function SUFToFIO(amount) {
   return (amount / 1000000000);
 }
-
-/*
-async function updateFeeDisplay() {
-  const register_fio_domain_fee = await getFIOChainFee('register_fio_domain');
-  const transfer_tokens_pub_key_fee = await getFIOChainFee('transfer_tokens_pub_key');
-*/
 
 async function chainGet(endpoint,params) {
   const response = await fetch(link.chains[0].client.provider.url + '/v1/chain/' + endpoint, {

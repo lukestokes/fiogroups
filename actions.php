@@ -107,10 +107,11 @@ if ($action == "create_group") {
 if ($action == "apply_to_group") {
     try {
         $Group->apply(
-            strip_tags($_POST["account"]),
+            strip_tags($logged_in_user),
             strip_tags($_POST["member_name_requested"]),
             strip_tags($_POST["bio"]),
-            strip_tags($_POST["membership_payment_transaction_id"])
+            strip_tags($_POST["membership_payment_transaction_id"]),
+            strip_tags($_POST["membership_proposal_name"]),
         );
     } catch (Exception $e) {
         $notice = $e->getMessage();

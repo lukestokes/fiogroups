@@ -16,6 +16,7 @@ final class ElectionTest extends TestCase
     public $fio_name               = "test";
     public $bio                    = "Some cool bio, yo.";
     public $transaction_id         = "9255cd7196e6d4003a3352928f3fec63cdf2a9ae7834512f932e95363f6e5408";
+    public $proposal_name          = "apply12345";
 
     public static function setUpBeforeClass(): void
     {
@@ -42,37 +43,37 @@ final class ElectionTest extends TestCase
                 $this->fio_public_key,
                 $this->group_account,
                 $this->domain,
-                $this->member_application_fee
+                $this->member_application_fee,
             );
             // set up some candidates
-            $this->group->apply($this->account, $this->fio_name, $this->bio, $this->transaction_id);
+            $this->group->apply($this->account, $this->fio_name, $this->bio, $this->transaction_id, $this->proposal_name);
             $this->group->approve($this->account);
             $this->group->registerCandidate($this->account);
 
-            $this->group->apply($this->account . "1", $this->fio_name . "1", $this->bio, $this->transaction_id);
+            $this->group->apply($this->account . "1", $this->fio_name . "1", $this->bio, $this->transaction_id, $this->proposal_name);
             $this->group->approve($this->account . "1");
             $this->group->registerCandidate($this->account . "1");
 
-            $this->group->apply($this->account . "2", $this->fio_name . "2", $this->bio, $this->transaction_id);
+            $this->group->apply($this->account . "2", $this->fio_name . "2", $this->bio, $this->transaction_id, $this->proposal_name);
             $this->group->approve($this->account . "2");
             $this->group->registerCandidate($this->account . "2");
 
-            $this->group->apply($this->account . "3", $this->fio_name . "3", $this->bio, $this->transaction_id);
+            $this->group->apply($this->account . "3", $this->fio_name . "3", $this->bio, $this->transaction_id, $this->proposal_name);
             $this->group->approve($this->account . "3");
             $this->group->registerCandidate($this->account . "3");
 
-            $this->group->apply($this->account . "4", $this->fio_name . "4", $this->bio, $this->transaction_id);
+            $this->group->apply($this->account . "4", $this->fio_name . "4", $this->bio, $this->transaction_id, $this->proposal_name);
             $this->group->approve($this->account . "4");
             $this->group->registerCandidate($this->account . "4");
 
             // set up some normal members
-            $this->group->apply($this->account . "5", $this->fio_name . "5", $this->bio, $this->transaction_id);
+            $this->group->apply($this->account . "5", $this->fio_name . "5", $this->bio, $this->transaction_id, $this->proposal_name);
             $this->group->approve($this->account . "5");
-            $this->group->apply($this->account . "6", $this->fio_name . "6", $this->bio, $this->transaction_id);
+            $this->group->apply($this->account . "6", $this->fio_name . "6", $this->bio, $this->transaction_id, $this->proposal_name);
             $this->group->approve($this->account . "6");
 
             // set up a pending member
-            $this->group->apply($this->account . "7", $this->fio_name . "7", $this->bio, $this->transaction_id);
+            $this->group->apply($this->account . "7", $this->fio_name . "7", $this->bio, $this->transaction_id, $this->proposal_name);
         } else {
             $Group->loadData($group_data);
             $this->group = $Group;
