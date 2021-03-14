@@ -119,12 +119,17 @@ if ($action == "apply_to_group") {
 }
 
 if ($action == "approve_pending_member") {
-    try {
-        $Group->approve(
-            strip_tags($_REQUEST["account"])
-        );
-    } catch (Exception $e) {
-        $notice = $e->getMessage();
+    $results = $Util->getPendingMsig(strip_tags($_REQUEST["account"]), strip_tags($_REQUEST["membership_proposal_name"]));
+    if (count($results->rows) > 0 && $results->rows[0]->proposal_name == strip_tags($_REQUEST["membership_proposal_name"])) {
+        $notice = "Please ensure the pending proposal " . strip_tags($_REQUEST["membership_proposal_name"]) . " is approved and executed before approving this member.";
+    } else {
+        try {
+            $Group->approve(
+                strip_tags($_REQUEST["account"])
+            );
+        } catch (Exception $e) {
+            $notice = $e->getMessage();
+        }
     }
 }
 

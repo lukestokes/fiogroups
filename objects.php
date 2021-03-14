@@ -77,6 +77,28 @@ class Util
         return $fee + ($fee * .1); // add 10% extra in case something changes between now and when it is executed.
     }
 
+    public function getPendingMsig($account, $membership_proposal_name)
+    {
+        try {
+            $params = array(
+                "json" => true,
+                "code" => "eosio.msig",
+                "scope" => $account,
+                "table" => "proposal",
+                "lower_bound" => $membership_proposal_name,
+                "upper_bound" => "",
+                "index_position" => 1,
+                "key_type" => "name",
+                "limit" => 1,
+            );
+            $response = $this->client->post('/v1/chain/get_table_rows', [
+                GuzzleHttp\RequestOptions::JSON => $params,
+            ]);
+            $result = json_decode($response->getBody());
+        } catch (\Exception $e) {}
+        return $result;
+    }
+
     function getTransferFee() {
         if ($this->transfer_fee) {
             return $this->transfer_fee;

@@ -247,4 +247,5 @@ final class GroupTest extends TestCase
 ';
         $this->assertEquals($expected,$output);
     }
+
 }

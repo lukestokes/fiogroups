@@ -221,9 +221,12 @@ $explorer_url = "https://fio-test.bloks.io/";
               $members[0]->print('table_header');
               foreach ($members as $Member) {
                 $controls = array(
-                  'account' => '$account [<a href="?action=register_candidate&domain=$domain&account=$account">Register Candidate</a>] [<a href="?action=deactivate_member&domain=$domain&account=$account">Deactivate</a>]',
+                  'account' => '$account',
                   'member_name' => '<a href="' . $explorer_url . 'address/$member_name@$domain" target="blank_">$member_name</a>',
                 );
+                if ($logged_in_user == $Member->account) {
+                  $controls['account'] .= ' [<a href="?action=register_candidate&domain=$domain&account=$account">Register Candidate</a>] [<a href="?action=deactivate_member&domain=$domain&account=$account">Deactivate</a>]';
+                }
                 if ($is_admin) {
                   $controls['account'] .= ' [<a href="?action=disable_member&domain=$domain&account=$account">Disable</a>]';
                 }
@@ -244,10 +247,12 @@ $explorer_url = "https://fio-test.bloks.io/";
               foreach ($pendingmembers as $PendingMember) {
                 // TODO: change this to be a javascript form POST, not a get. Protect against CSRF.
                 $controls = array(
-                  'account' => '$account [<a href="?action=approve_pending_member&domain=$domain&account=$account">Approve</a>]',
                   'application_date' => '<a href="' . $explorer_url . 'transaction/$membership_payment_transaction_id" target="blank_">$application_date</a>',
                   'membership_proposal_name' => '<a href="' . $explorer_url . 'msig/$account/$membership_proposal_name" target="blank_">$membership_proposal_name</a>',
                 );
+                if ($is_admin) {
+                  $controls['account'] = '$account [<a href="?action=approve_pending_member&domain=$domain&account=$account&membership_proposal_name=$membership_proposal_name">Approve</a>]';
+                }
                 $PendingMember->print('table',$controls);
               }
               ?>

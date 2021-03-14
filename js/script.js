@@ -10,6 +10,7 @@ $(document).ready(function(){
   date_input.datepicker(options);
 
   $('#apply_to_group_button').on('click', function(e) {
+    // TODO: I need a way (from JavaScript) to query server side values to ensure this person hasn't already applied.
     if (!link) {
       alert("Please login using your FIO account and Anchor Wallet by Greymass.");
       return;
