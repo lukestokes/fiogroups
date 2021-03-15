@@ -100,7 +100,7 @@ if ($action == "create_group") {
         $fio_balance = $Util->getFIOBalance();
         $_SESSION['fio_balance'] = $fio_balance;
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 
@@ -114,21 +114,21 @@ if ($action == "apply_to_group") {
             strip_tags($_POST["membership_proposal_name"]),
         );
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 
 if ($action == "approve_pending_member") {
     $results = $Util->getPendingMsig(strip_tags($_REQUEST["account"]), strip_tags($_REQUEST["membership_proposal_name"]));
     if (count($results->rows) > 0 && $results->rows[0]->proposal_name == strip_tags($_REQUEST["membership_proposal_name"])) {
-        $notice = "Please ensure the pending proposal " . strip_tags($_REQUEST["membership_proposal_name"]) . " is approved and executed before approving this member.";
+        $notice = '<div class="alert alert-danger" role="alert">Please ensure the pending proposal <a href="' . $explorer_url . 'msig/' . strip_tags($_REQUEST["account"]) . '/' . strip_tags($_REQUEST["membership_proposal_name"]) . '" target="_blank">' . strip_tags($_REQUEST["membership_proposal_name"]) . '</a> is approved and executed before approving this member.</div>';
     } else {
         try {
             $Group->approve(
                 strip_tags($_REQUEST["account"])
             );
         } catch (Exception $e) {
-            $notice = $e->getMessage();
+            $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
         }
     }
 }
@@ -143,7 +143,7 @@ if ($action == "create_election") {
             $vote_date,
         );
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 
@@ -153,7 +153,7 @@ if ($action == "register_candidate") {
             strip_tags($_REQUEST["account"])
         );
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 
@@ -163,7 +163,7 @@ if ($action == "disable_member") {
             strip_tags($_REQUEST["account"])
         );
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 
@@ -173,7 +173,7 @@ if ($action == "enable_member") {
             strip_tags($_REQUEST["account"])
         );
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 
@@ -183,7 +183,7 @@ if ($action == "deactivate_member") {
             strip_tags($_REQUEST["account"])
         );
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 
@@ -193,7 +193,7 @@ if ($action == "activate_member") {
             strip_tags($_REQUEST["account"])
         );
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 
@@ -212,7 +212,7 @@ if ($action == "vote") {
         $action = "show_votes";
         $notice = "Vote cast for " . strip_tags($_REQUEST["candidate_account"]) . " by " . $logged_in_user . ".";
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 if ($action == "remove_vote") {
@@ -223,17 +223,39 @@ if ($action == "remove_vote") {
         );
         $action = "show_votes";
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
 
 if ($action == "record_vote_results") {
     try {
         $Group->recordVoteResults();
+        $notice = 'Votes Recorded. Please complete the election.';
     } catch (Exception $e) {
-        $notice = $e->getMessage();
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
+
+if ($action == "complete_election") {
+    try {
+        $Election = $Group->getCurrentElection();
+        $Election->results_proposer = strip_tags($_REQUEST["results_proposer"]);
+        $Election->results_proposal_name = strip_tags($_REQUEST["results_proposal_name"]);
+        $Election->save();
+        $notice = 'Election complete. Please certify the voting results by asking the admins to approve the msig.';
+    } catch (Exception $e) {
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
+    }
+}
+
+if ($action == "certify_vote_results") {
+    try {
+        $Group->certifyVoteResults();
+    } catch (Exception $e) {
+        $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
+    }
+}
+
 
 if ($notice != "") {
     ?>

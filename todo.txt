@@ -6,3 +6,5 @@ need fio.js to:
 1) generate a key pair
 2) create group
 3) change permissions on the group to the account owner
+
+IDEA: pass signed transactions to the server and broadcast them. Only after they complete do you update data in the database.

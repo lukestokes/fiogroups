@@ -38,39 +38,156 @@ $(document).ready(function(){
       );
   });
 
-async function getDomainOwner(domain) {
-  const encoded = new TextEncoder().encode(domain)
-  // get a sha-1 hash of the value
-  hashHex = ''
-  hash = await crypto.subtle.digest("SHA-1", encoded)
-  const hashArray = Array.from(new Uint8Array(hash)).slice(0,16).reverse()
-  // convert to a string with '0x' prefix
-  hashHex = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  $('#create_group_button').on('click', function(e) {
+    if (!link) {
+      alert("Please login using your FIO account and Anchor Wallet by Greymass.");
+      return;
+    }
+    const regex = new RegExp('^(?:(?=.{3,64}$)[a-zA-Z0-9]{1}(?:(?!-{2,}))[a-zA-Z0-9-]*(?:(?<!-))@[a-zA-Z0-9]{1}(?:(?!-{2,}))[a-zA-Z0-9-]*(?:(?<!-))$)');
+    domain = $("#domain").val();
+    creator_member_name = $("#creator_member_name").val();
+    if (!regex.test(creator_member_name+'@'+domain)) {
+      alert("Please enter a valid name and domain. Valid characters include: a-z 0-9 -");
+      return;
+    }
 
-  const params = {
-    code: 'fio.address',
-    scope: 'fio.address',
-    table: 'domains',
-    lower_bound: hashHex,
-    upper_bound: hashHex,
-    key_type: 'i128',
-    index_position: 4,
-    json: true
+    privKey = AnchorLink.PrivateKey.generate('K1');
+    pubKey = privKey.toPublic();
+    privKeyWif = privKey.toWif();
+    fio_public_key = pubKey.toLegacyString('FIO');
+    keyPair = {
+      private:privKeyWif,
+      public:fio_public_key
+    };
+
+    console.log("Created a new temporary keyPair for " + keyPair.public);
+
+    pubkey = keyPair.public.substring('FIO'.length, keyPair.public.length);
+    const decoded58 = b58decode(pubkey);
+    const long = shortenKey(decoded58);
+    const actor = stringFromUInt64T(long);
+
+    $("#group_fio_public_key").val(keyPair.public);
+    $("#group_account").val(actor);
+
+    createGroupOnChain(keyPair, actor, $("#domain").val(), $("#creator_member_name").val());
+  });
+
+});
+
+async function verifyOwners(domain, admins, vote_threshold) {
+  const group_account_from_domain = await getDomainOwner(domain);
+  const group_account_info = await chainGet('get_account',{account_name: group_account_from_domain});
+  on_chain_admins = [];
+  for (i = 0; i < group_account_info.permissions.length; i++) {
+    if (group_account_info.permissions[i].perm_name == "active") {
+      for (j = 0; j < group_account_info.permissions[i].required_auth.accounts.length; j++) {
+        on_chain_admins[on_chain_admins.length] = group_account_info.permissions[i].required_auth.accounts[j].permission.actor;
+      }
+    }
   }
-  const result = await chainGet('get_table_rows',params);
-  owner = "";
-  if (result && result.rows[0] && result.rows[0].account) {
-    owner = result.rows[0].account;
+  if (JSON.stringify(admins)==JSON.stringify(on_chain_admins)) {
+    alert("The permissions for " + group_account_from_domain + " are correct on chain.");
+  } else {
+    alert("The permissions on chain are not correct. Let's propose an msig to fix this: " + JSON.stringify(admins) + " and " + JSON.stringify(on_chain_admins));
+    completeElection(domain, admins, vote_threshold);
   }
-  return owner;
 }
 
-function getProposalName() {
-  proposal_name = ""
-  for (var i = 0; i < 7; i++) {
-    proposal_name = proposal_name + "" + (Math.floor(Math.random() * 5) + 1);
+async function completeElection(domain, new_admins, vote_threshold) {
+  alert("This may take a few moments to process. Please keep your browser window open and don't refresh until the process is complete.");
+  const fio_public_key = session.publicKey.toLegacyString("FIO");
+  const tpid = 'luke@stokes'
+  const current_balance = await getFIOBalance(fio_public_key);
+  const msig_propose_fee = await getFIOChainFee('msig_propose');
+
+  total_to_charge = msig_propose_fee
+
+  if (total_to_charge > FIOToSUF(current_balance)) {
+    alert("You need " + SUFToFIO(total_to_charge) + " FIO to apply for membership but only have " + current_balance);
+    return ;
   }
-  return "apply" + proposal_name;
+
+  if (vote_threshold > new_admins.length) {
+    alert("The vote threshold set can not be satisifed. Please contact support to fix your election.");
+    return ;
+  }
+
+  confirm_cost = confirm("Are you ready to spend " + SUFToFIO(total_to_charge) + " FIO to complete this election?");
+  confirm_cost = true;
+  if (!confirm_cost) {
+    return ;
+  }
+
+  auth_update_fee = await getFIOChainFee('auth_update');
+  //auth_update_fee = auth_update_fee * 5;
+  const eosio_abi = await getABI('eosio');
+  const group_account_from_domain = await getDomainOwner(domain);
+  const upate_owner_action = getCustomizedUpdateAuthAction(group_account_from_domain,"owner","", vote_threshold, new_admins, auth_update_fee, eosio_abi);
+  const upate_active_action = getCustomizedUpdateAuthAction(group_account_from_domain,"active","owner", vote_threshold, new_admins, auth_update_fee, eosio_abi);
+
+  const eosiomsig_abi = await getABI('eosio.msig');
+  const proposal_name = getProposalName();
+
+  const info = await link.client.v1.chain.get_info()
+  header = info.getTransactionHeader()
+
+  const expiration_days_in_seconds = (60 * 60 * 24 * 7) // seconds, minutes, hours, days
+
+  header.expiration = new AnchorLink.TimePointSec(AnchorLink.UInt32.from(header.expiration.value.value + expiration_days_in_seconds));
+
+  const transaction = AnchorLink.Transaction.from({
+      ...header,
+      actions: [upate_active_action,upate_owner_action],
+  })
+
+  const group_account_info = await chainGet('get_account',{account_name: group_account_from_domain});
+  required_auths = [];
+  for (i = 0; i < group_account_info.permissions.length; i++) {
+    if (group_account_info.permissions[i].perm_name == "active") {
+      for (j = 0; j < group_account_info.permissions[i].required_auth.accounts.length; j++) {
+        required_auths[required_auths.length] = {
+          actor: group_account_info.permissions[i].required_auth.accounts[j].permission.actor,
+          permission: group_account_info.permissions[i].required_auth.accounts[j].permission.permission
+        };
+      }
+    }
+  }
+
+  const msig_action = AnchorLink.Action.from({
+    account: 'eosio.msig',
+    name: 'propose',
+    authorization: [session.auth],
+    data: {
+      proposer: session.auth.actor,
+      proposal_name: proposal_name,
+      requested: required_auths,
+      max_fee: msig_propose_fee,
+      trx: transaction
+    },
+  },eosiomsig_abi);
+
+  try {
+    const actions_result = await session.transact(
+      {
+        actions: [msig_action]
+      }
+    );
+    console.log("done")
+    console.log(actions_result.processed.id);
+
+    $("#results_proposal_name").val(proposal_name);
+    $("#results_proposer").val(session.auth.actor);
+
+  } catch (err) {
+    console.log(err);
+    alert("There was an error completing this election. Please make sure you have enough FIO Tokens. Check the console for details.");
+    return ;
+  }
+
+  if ($('#election')) { // fix this
+    $('#election').submit();
+  }
 }
 
 async function applyToGroup(
@@ -206,43 +323,6 @@ async function applyToGroup(
 }
 
 
-  $('#create_group_button').on('click', function(e) {
-    if (!link) {
-      alert("Please login using your FIO account and Anchor Wallet by Greymass.");
-      return;
-    }
-    const regex = new RegExp('^(?:(?=.{3,64}$)[a-zA-Z0-9]{1}(?:(?!-{2,}))[a-zA-Z0-9-]*(?:(?<!-))@[a-zA-Z0-9]{1}(?:(?!-{2,}))[a-zA-Z0-9-]*(?:(?<!-))$)');
-    domain = $("#domain").val();
-    creator_member_name = $("#creator_member_name").val();
-    if (!regex.test(creator_member_name+'@'+domain)) {
-      alert("Please enter a valid name and domain. Valid characters include: a-z 0-9 -");
-      return;
-    }
-
-    privKey = AnchorLink.PrivateKey.generate('K1');
-    pubKey = privKey.toPublic();
-    privKeyWif = privKey.toWif();
-    fio_public_key = pubKey.toLegacyString('FIO');
-    keyPair = {
-      private:privKeyWif,
-      public:fio_public_key
-    };
-
-    console.log("Created a new temporary keyPair for " + keyPair.public);
-
-    pubkey = keyPair.public.substring('FIO'.length, keyPair.public.length);
-    const decoded58 = b58decode(pubkey);
-    const long = shortenKey(decoded58);
-    const actor = stringFromUInt64T(long);
-
-    $("#group_fio_public_key").val(keyPair.public);
-    $("#group_account").val(actor);
-
-    createGroupOnChain(keyPair, actor, $("#domain").val(), $("#creator_member_name").val());
-  });
-
-});
-
 async function createGroupOnChain(keyPair, actor, domain, name) {
   alert("This may take a few moments to process. Please keep your browser window open and don't refresh until the process is complete.");
 
@@ -334,7 +414,7 @@ async function createGroupOnChain(keyPair, actor, domain, name) {
       }
     );
     console.log("Domain created, address created, tokens transfered")
-    console.log(actions_result.transaction_id);
+    console.log(actions_result.processed.id);
   } catch (err) {
     console.log(err);
     alert("There was an error setting up your group. Please make sure you have enough FIO Tokens. Check the console for details.");
@@ -344,11 +424,21 @@ async function createGroupOnChain(keyPair, actor, domain, name) {
   try {
     const permission_update_result = await updatePermissionsOfNewlyCreatedAcccount(keyPair, actor);
     console.log("Permissions updated for new account at " + keyPair.public)
-    console.log(permission_update_result.transaction_id);
+    console.log(permission_update_result.processed.id);
   } catch (err) {
+    console.log("Error updating group permissions... let's try again...");
     console.log(err);
-    alert("There was an error updating permissions for your group. Please make sure you have enough FIO Tokens. Check the console for details.");
-    return ;
+    alert("There was an error updating your permissions, but we're going to try again...");
+    try {
+      const permission_update_result_second_try = await updatePermissionsOfNewlyCreatedAcccount(keyPair, actor);
+      console.log("Permissions updated for new account at " + keyPair.public)
+      console.log(permission_update_result_second_try.processed.id);
+    } catch (second_error) {
+      console.log("We tried twice. Not sure what's going on...");
+      console.log(second_error);
+      alert("There was an error updating permissions for your group. Please make sure you have enough FIO Tokens. Check the console for details.");
+      return ;
+    }
   }
 
   const transfer_domain_action = {
@@ -386,7 +476,7 @@ async function createGroupOnChain(keyPair, actor, domain, name) {
       }
     );
     console.log("Domain transfered to " + keyPair.public)
-    console.log(transfer_domain_result.transaction_id);
+    console.log(transfer_domain_result.processed.id);
   } catch (err) {
     console.log(err);
     alert("There was an error transferring your domain. Please make sure you have enough FIO Tokens. Check the console for details.");
@@ -402,6 +492,41 @@ function FIOToSUF(amount) {
 }
 function SUFToFIO(amount) {
   return (amount / 1000000000);
+}
+
+async function getDomainOwner(domain) {
+  const encoded = new TextEncoder().encode(domain)
+  // get a sha-1 hash of the value
+  hashHex = ''
+  hash = await crypto.subtle.digest("SHA-1", encoded)
+  const hashArray = Array.from(new Uint8Array(hash)).slice(0,16).reverse()
+  // convert to a string with '0x' prefix
+  hashHex = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+  const params = {
+    code: 'fio.address',
+    scope: 'fio.address',
+    table: 'domains',
+    lower_bound: hashHex,
+    upper_bound: hashHex,
+    key_type: 'i128',
+    index_position: 4,
+    json: true
+  }
+  const result = await chainGet('get_table_rows',params);
+  owner = "";
+  if (result && result.rows[0] && result.rows[0].account) {
+    owner = result.rows[0].account;
+  }
+  return owner;
+}
+
+function getProposalName() {
+  proposal_name = ""
+  for (var i = 0; i < 7; i++) {
+    proposal_name = proposal_name + "" + (Math.floor(Math.random() * 5) + 1);
+  }
+  return "apply" + proposal_name;
 }
 
 async function chainGet(endpoint,params) {
@@ -464,6 +589,44 @@ function getSignedTransaction(header, keyPair, actions, info) {
   })
   return signedTransaction
 }
+
+function getCustomizedUpdateAuthAction(actor, permission, parent, threshold, accounts, auth_update_fee, abi) {
+  auth_accounts = [];
+  for (var i = 0; i < accounts.length; i++) {
+    auth_account = {
+      "permission": {
+        "actor": accounts[i],
+        "permission": "active"
+      },
+      "weight": 1
+    }
+    auth_accounts[auth_accounts.length] = auth_account;
+  }
+  const action = AnchorLink.Action.from({
+  "authorization": [
+      {
+          "actor": actor,
+          "permission": 'owner',
+      },
+  ],
+  "account": 'eosio',
+  "name": 'updateauth',
+  "data": {
+    "account": actor,
+    "permission": permission,
+    "parent": parent,
+    "auth": {
+      "threshold": threshold,
+      "keys": [],
+      "accounts": auth_accounts,
+      "waits": []
+    },
+    "max_fee": auth_update_fee
+  }
+  },abi);
+  return action;
+}
+
 
 function getUpdateAuthAction(actor, permission, parent, auth_update_fee, abi) {
   const action = AnchorLink.Action.from({

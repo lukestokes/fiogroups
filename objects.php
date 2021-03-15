@@ -120,6 +120,14 @@ class Util
       return ($amount / 1000000000);
     }
 
+    function getProposalName() {
+      $proposal_name = "";
+      for ($i = 0; $i < 7; $i++) {
+        $proposal_name .= rand(1,5);
+      }
+      return "apply" + $proposal_name;
+    }
+
 }
 
 class Factory
@@ -230,7 +238,7 @@ class BaseObject
         return $objects;
     }
 
-    function print($format = "", $controls = null) {
+    function print($format = "", $controls = array()) {
         $object_data           = $this->getData();
         $printable_object_data = $this->getPrintableFields();
         if ($format == "") {
@@ -266,7 +274,7 @@ class BaseObject
             }
             foreach ($values_to_display as $key => $value_to_display) {
                 print "<td>";
-                if ($controls && array_key_exists($key, $controls)) {
+                if (array_key_exists($key, $controls)) {
                     $value_to_display = str_replace(
                         $display_keys,
                         $object_data,
@@ -702,6 +710,13 @@ create fio address in that account
         $Election = $this->getCurrentElection();
         // note: this can throw exception
         $Election->recordVoteResults();
+    }
+
+    public function certifyVoteResults()
+    {
+        $Election = $this->getCurrentElection();
+        // note: this can throw exception
+        $Election->certifyVoteResults();
         $this->epoch++;
         $this->save();
     }
@@ -726,7 +741,7 @@ class PendingMember extends BaseObject
      */
     public $membership_payment_transaction_id;
     public $membership_proposal_name;
-    public $non_printable_fields = array('domain', 'membership_payment_transaction_id');
+    public $non_printable_fields = array('domain','membership_payment_transaction_id','membership_proposal_name');
 
 }
 
@@ -843,11 +858,18 @@ class Election extends BaseObject
      * The date this election was marked as complete.
      */
     public $date_certified;
+    /*
+     * NEW
+     */
+    public $results_proposer;
+    public $results_proposal_name;
 
-    public $non_printable_fields = array('domain');
+    public $non_printable_fields = array('domain','results_proposer','results_proposal_name');
 
     public function vote($voter_account, $candidate_account, $rank, $vote_weight)
     {
+        // TODO: make sure you can only vote if you're a member
+
         $Vote = $this->factory->new("Vote");
         if (time() > $this->vote_date) {
             throw new Exception("Voting for epoch " . $this->epoch . " is already closed. Now: " . time() . ", deadline: " . $this->vote_date . ".", 1);
@@ -915,6 +937,9 @@ class Election extends BaseObject
             $date_display = date("Y-m-d H:i:s", $this->vote_date);
             throw new Exception("This election is not over. Please wait until after " . $date_display, 1);
         }
+        if ($this->is_complete) {
+            throw new Exception("The voting results for this election have already been recorded.", 1);
+        }
         $admin_candidates = $this->getAdminCandidates();
         $Vote             = $this->factory->new("Vote");
         $votes            = array();
@@ -944,10 +969,33 @@ class Election extends BaseObject
         $rank = 1;
         foreach ($vote_results as $VoteResult) {
             $VoteResult->rank = $rank;
-            $VoteResult->save();
+            if ($rank <= $this->number_of_admins) {
+                $VoteResult->save();
+            }
             $rank++;
         }
-        $vote_results = array_slice($vote_results, 0, $this->number_of_admins);
+        $this->is_complete    = true;
+        $this->save();
+    }
+
+    public function getVoteResults()
+    {
+        $VoteResult = $this->factory->new("VoteResult");
+        $criteria = [["domain","=",$this->domain],["epoch","=",$this->epoch]];
+        $vote_results = $VoteResult->readAll($criteria);
+        return $vote_results;
+    }
+
+    public function certifyVoteResults()
+    {
+        global $Util; // fix this later
+        global $explorer_url; // fix this later
+        $results = $Util->getPendingMsig($this->results_proposer, $this->results_proposal_name);
+        if (count($results->rows) > 0 && $results->rows[0]->proposal_name == $this->results_proposal_name) {
+            throw new Exception('Please ensure the pending proposal <a href="' . $explorer_url . 'msig/' . $this->results_proposer . '/' . $this->results_proposal_name . '" target="_blank">' . $this->results_proposal_name . '</a> proposed by ' . $this->results_proposer . ' is approved and executed before certifying this elecion.', 1);
+        }
+
+        $vote_results = $this->getVoteResults();
 
         $Member   = $this->factory->new("Member");
         $criteria = ["domain", "=", $this->domain];
@@ -964,6 +1012,7 @@ class Election extends BaseObject
                 }
             }
         }
+        $admin_candidates = $this->getAdminCandidates();
 
         foreach ($admin_candidates as $AdminCandidate) {
             $AdminCandidate->delete();
@@ -971,8 +1020,8 @@ class Election extends BaseObject
 
         // TODO: queue up a multisig transaction to adjust the permissions of the group account based on the election results
 
-        $this->is_complete    = true;
         $this->date_certified = time();
         $this->save();
     }
+
 }

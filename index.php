@@ -7,9 +7,9 @@ $nodeUrl = 'https://testnet.fioprotocol.io';
 //$nodeUrl = 'https://testnet.fio.eosdetroit.io';
 //$client = new GuzzleHttp\Client(['base_uri' => 'http://fio.greymass.com']);
 $client = new GuzzleHttp\Client(['base_uri' => $nodeUrl]);
-include "header.php";
 //$explorer_url = "https://fio.bloks.io/";
 $explorer_url = "https://fio-test.bloks.io/";
+include "header.php";
 ?>
 <!doctype html>
 <html lang="en">
@@ -70,11 +70,19 @@ $explorer_url = "https://fio-test.bloks.io/";
             if (count($admins)) {
               $admins[0]->print('table_header');
             }
+            $admin_accounts_string = '[';
             foreach ($admins as $Admin) {
+              $admin_accounts_string .= "'" . $Admin->account . "',";
               $Admin->print('table');
             }
+            $admin_accounts_string = trim($admin_accounts_string,',');
+            $admin_accounts_string .= ']';
             ?>
             </table>
+
+            <!-- fix this threshold. Need to pull from the data, the last completed election -->
+
+            <p>[<a href="#" onclick="verifyOwners('<?php print $domain; ?>',<?php print $admin_accounts_string; ?>,1); return false;">Verify</a>]</p>
 
             <?php
             $admincandidates = $Group->getAdminCandidates();
@@ -101,12 +109,17 @@ $explorer_url = "https://fio-test.bloks.io/";
 
             <h2>Elections:</h2>
             <?php
+
+            // TODO: work with multiple elections, not ust the current one, to show historical data
+
             $show_create_election = false;
+            $show_vote_results = false;
             $election_form_values = array();
             try {
               $Election = $Group->getCurrentElection();
               if ($Election->is_complete) {
                 $show_create_election = true;
+                $show_vote_results = true;
                 $election_form_values = array(
                   'number_of_admins' => $Election->number_of_admins,
                   'vote_threshold' => $Election->vote_threshold,
@@ -118,12 +131,67 @@ $explorer_url = "https://fio-test.bloks.io/";
               <?php
               $Election->print('table_header');
               $controls = array(
-                'vote_date' => '$vote_date [<a href="?action=show_votes&domain=$domain">Show Votes</a>] [<a href="?action=record_vote_results&domain=$domain">Record Vote Results</a>]'
+                'vote_date' => '$vote_date [<a href="?action=show_votes&domain=$domain">Show Votes</a>]'
               );
+              if (!$Election->is_complete && $Election->vote_date < time()) {
+                $controls['vote_date'] .= ' [<a href="?action=record_vote_results&domain=$domain">Record Vote Results</a>]';
+              }
+              if ($Election->is_complete) {
+                if (is_null($Election->date_certified)) {
+                  if ($Election->results_proposal_name == "") {
+                    $vote_results = $Election->getVoteResults();
+                    if ($Election->number_of_admins > count($vote_results)) {
+                      $Election->date_certified = time();
+                      $Election->save();
+                      $Group->epoch++;
+                      $Group->save();
+                    } else {
+                      $new_admin_string = '[';
+                      foreach ($vote_results as $VoteResult) {
+                        $new_admin_string .= "'" . $VoteResult->candidate_account . "',";
+                      }
+                      $new_admin_string = trim($new_admin_string,",");
+                      $new_admin_string .= ']';
+                      $controls['vote_date'] .= ' [<a href="#" onclick="completeElection(\'$domain\',' . $new_admin_string . ',' . $Election->vote_threshold . '); return false;">Complete Election</a>]';
+                    }
+                  } else {
+                    $controls['vote_date'] .= ' [<a href="?action=certify_vote_results&domain=$domain">Certify Vote Results</a>] [<a href="' . $explorer_url . 'msig/$results_proposer/$results_proposal_name" target="_blank">View Msig</a>]';
+                  }
+                } else {
+                  $controls['vote_date'] .= ' [<a href="?action=show_vote_results&domain=$domain">Show Vote Results</a>]';
+                }
+              }
               $Election->print('table',$controls);
               ?>
               </table>
+
+              <form id="election" method="POST">
+                <input type="hidden" id="action" name="action" value="complete_election" />
+                <input type="hidden" id="domain" name="domain" value="<?php print $domain; ?>" />
+                <input type="hidden" id="results_proposer" name="results_proposer" value="" />
+                <input type="hidden" id="results_proposal_name" name="results_proposal_name" value="" />
+              </form>
+
               <?php
+              if ($show_vote_results || $action == "show_vote_results") {
+                // TODO: sort by rank desc
+                $VoteResult = $Factory->new("VoteResult");
+                $criteria = [["domain","=",$domain],["epoch","=",$Election->epoch]];
+                $vote_results = $VoteResult->readAll($criteria);
+                if (count($vote_results)) {
+                  ?>
+                  <h3>Vote Results</h3>
+                  <table class="table table-striped table-bordered">
+                  <?php
+                  $vote_results[0]->print('table_header');
+                  foreach ($vote_results as $VoteResult) {
+                    $VoteResult->print('table');
+                  }
+                  ?>
+                  </table>
+                  <?php
+                }
+              }
               if ($action == "show_votes") {
                 $Vote = $Factory->new("Vote");
                 $criteria = [["domain","=",$domain],["epoch","=",$Election->epoch]];
@@ -135,7 +203,10 @@ $explorer_url = "https://fio-test.bloks.io/";
                   <?php
                   $votes[0]->print('table_header');
                   foreach ($votes as $Vote) {
-                    $controls = array('voter_account' => '$voter_account [<a href="?action=remove_vote&domain=$domain&candidate_account=$candidate_account">Remove Vote</a>]');
+                    $controls = array();
+                    if ($logged_in_user == $Vote->voter_account) {
+                      $controls = array('voter_account' => '$voter_account [<a href="?action=remove_vote&domain=$domain&candidate_account=$candidate_account">Remove Vote</a>]');
+                    }
                     $Vote->print('table',$controls);
                   }
                   ?>
@@ -222,7 +293,7 @@ $explorer_url = "https://fio-test.bloks.io/";
               foreach ($members as $Member) {
                 $controls = array(
                   'account' => '$account',
-                  'member_name' => '<a href="' . $explorer_url . 'address/$member_name@$domain" target="blank_">$member_name</a>',
+                  'member_name' => '<a href="' . $explorer_url . 'address/$member_name@$domain" target="_blank">$member_name</a>',
                 );
                 if ($logged_in_user == $Member->account) {
                   $controls['account'] .= ' [<a href="?action=register_candidate&domain=$domain&account=$account">Register Candidate</a>] [<a href="?action=deactivate_member&domain=$domain&account=$account">Deactivate</a>]';
@@ -247,11 +318,10 @@ $explorer_url = "https://fio-test.bloks.io/";
               foreach ($pendingmembers as $PendingMember) {
                 // TODO: change this to be a javascript form POST, not a get. Protect against CSRF.
                 $controls = array(
-                  'application_date' => '<a href="' . $explorer_url . 'transaction/$membership_payment_transaction_id" target="blank_">$application_date</a>',
-                  'membership_proposal_name' => '<a href="' . $explorer_url . 'msig/$account/$membership_proposal_name" target="blank_">$membership_proposal_name</a>',
+                  'application_date' => '<a href="' . $explorer_url . 'transaction/$membership_payment_transaction_id" target="_blank">$application_date</a>',
                 );
                 if ($is_admin) {
-                  $controls['account'] = '$account [<a href="?action=approve_pending_member&domain=$domain&account=$account&membership_proposal_name=$membership_proposal_name">Approve</a>]';
+                  $controls['account'] = '$account [<a href="?action=approve_pending_member&domain=$domain&account=$account&membership_proposal_name=$membership_proposal_name">Approve</a>] [<a href="' . $explorer_url . 'msig/$account/$membership_proposal_name" target="_blank">View Msig</a>]';
                 }
                 $PendingMember->print('table',$controls);
               }
@@ -309,7 +379,10 @@ $explorer_url = "https://fio-test.bloks.io/";
               <?php
               $groups[0]->print('table_header');
               foreach ($groups as $Group) {
-                $controls = array('domain' => '<a href="?domain=$domain">$domain</a>');
+                $controls = array(
+                  'domain' => '<a href="?domain=$domain">$domain</a>',
+                  'group_account' => '<a href="' . $explorer_url . 'account/$group_account" target="_blank">$group_account</a>',
+                );
                 $Group->print('table',$controls);
               }
               ?>
