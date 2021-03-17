@@ -13,41 +13,93 @@ if ($use_testnet) {
 $client = new GuzzleHttp\Client(['base_uri' => $nodeUrl]);
 include "header.php";
 ?>
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Required meta tags -->
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <meta name="description" content="<?php print $description; ?>">
-    <meta name="author" content="Luke Stokes">
-    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+<head>
 
-    <!-- Facebook -->
-    <!--<meta property="og:url"           content="<?php print $url; ?>" />-->
-    <meta property="og:type"          content="website" />
-    <meta property="og:title"         content="<?php print $title; ?>" />
-    <meta property="og:description"   content="<?php print $description; ?>" />
-    <!--<meta property="og:image"         content="<?php print $image; ?>" />-->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- Twitter -->
-    <meta name="twitter:creator" content="@lukestokes">
-    <meta name="twitter:title" content="<?php print $title; ?>">
-    <meta name="twitter:description" content="<?php print $description; ?>">
-    <!--<meta name="twitter:image" content="<?php print $image; ?>">-->
+  <meta name="description" content="<?php print $description; ?>">
+  <meta name="author" content="Luke Stokes">
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
 
+  <!-- Facebook -->
+  <!--<meta property="og:url"           content="<?php print $url; ?>" />-->
+  <meta property="og:type"          content="website" />
+  <meta property="og:title"         content="<?php print $title; ?>" />
+  <meta property="og:description"   content="<?php print $description; ?>" />
+  <!--<meta property="og:image"         content="<?php print $image; ?>" />-->
 
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+  <!-- Twitter -->
+  <meta name="twitter:creator" content="@lukestokes">
+  <meta name="twitter:title" content="<?php print $title; ?>">
+  <meta name="twitter:description" content="<?php print $description; ?>">
+  <!--<meta name="twitter:image" content="<?php print $image; ?>">-->
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.4.1/css/bootstrap-datepicker3.css"/>
+  <!-- Bootstrap core CSS -->
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.4.1/css/bootstrap-datepicker3.css"/>
+
+  <!-- Custom styles for this template -->
+  <link href="css/simple-sidebar.css" rel="stylesheet">
 
   <title><?php print $title; ?></title>
-  </head>
-  <body onload="restoreSession()">
-    <div class="container-fluid">
-      <div class="row m-3">
+</head>
+
+<body onload="restoreSession()">
+
+  <div class="d-flex" id="wrapper">
+
+    <!-- Sidebar -->
+    <div class="bg-light border-right" id="sidebar-wrapper">
+      <div class="sidebar-heading">Start Bootstrap </div>
+      <div class="list-group list-group-flush">
+        <a href="#" class="list-group-item list-group-item-action bg-light">Dashboard</a>
+        <a href="#" class="list-group-item list-group-item-action bg-light">Shortcuts</a>
+        <a href="#" class="list-group-item list-group-item-action bg-light">Overview</a>
+        <a href="#" class="list-group-item list-group-item-action bg-light">Events</a>
+        <a href="#" class="list-group-item list-group-item-action bg-light">Profile</a>
+        <a href="#" class="list-group-item list-group-item-action bg-light">Status</a>
+      </div>
+    </div>
+    <!-- /#sidebar-wrapper -->
+
+    <!-- Page Content -->
+    <div id="page-content-wrapper">
+      <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom">
+        <button class="btn btn-primary" id="menu-toggle">Toggle Menu</button>
+
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          <ul class="navbar-nav ml-auto mt-2 mt-lg-0">
+            <li class="nav-item active">
+              <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#">Link</a>
+            </li>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Dropdown
+              </a>
+              <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
+                <a class="dropdown-item" href="#">Action</a>
+                <a class="dropdown-item" href="#">Another action</a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#">Something else here</a>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </nav>
+
+      <div class="container-fluid">
           <?php
           if ($use_testnet) {
             print "<h3 style='color:red'>TESTNET</h3>";
@@ -456,52 +508,64 @@ include "header.php";
           <div class="form-group">
             <button type="submit" class="btn btn-primary" onclick="login()">Login</button>
           </div>
-
-
       </div>
+      <!-- /#container-fluid -->
+
     </div>
-    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
-    <script>
-    var nodeUrl = '<?php print $nodeUrl; ?>';
-    var explorer_url = '<?php print $explorer_url; ?>';
-    <?php if (isset($_GET{'login'})) { ?>
-      $(function() {
-        login();
-      });
-    <?php } ?>
-    <?php if (isset($_GET{'logout'})) { ?>
-      $(function() {
-        logout();
-      });
-    <?php } ?>
-    </script>
-    <script src="https://unpkg.com/anchor-link@3"></script>
-    <script src="https://unpkg.com/anchor-link-browser-transport@3"></script>
-    <script src="js/long.js"></script>
-    <!-- Bootstrap Date-Picker Plugin -->
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.4.1/js/bootstrap-datepicker.min.js"></script>
-    <script src="js/script.js"></script>
-    <script>
-    // app identifier, should be set to the eosio contract account if applicable
-    const identifier = 'fiogroups'
-    // initialize the browser transport
-    const transport = new AnchorLinkBrowserTransport()
-    // initialize the link
-    const link = new AnchorLink(
-        {
-          transport,
-          chains: [
-              {
-                  chainId: '<?php print $chainId; ?>',
-                  nodeUrl: '<?php print $nodeUrl; ?>',
-              }
-          ],
-        }
-      );
-    // the session instance, either restored using link.restoreSession() or created with link.login()
-    let session
-    </script>
-  </body>
+    <!-- /#page-content-wrapper -->
+  </div>
+  <!-- /#wrapper -->
+
+  <!-- Bootstrap core JavaScript -->
+  <script src="js/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+  <script src="js/bootstrap.bundle.min.js"></script>
+  <script>
+  var nodeUrl = '<?php print $nodeUrl; ?>';
+  var explorer_url = '<?php print $explorer_url; ?>';
+  <?php if (isset($_GET{'login'})) { ?>
+    $(function() {
+      login();
+    });
+  <?php } ?>
+  <?php if (isset($_GET{'logout'})) { ?>
+    $(function() {
+      logout();
+    });
+  <?php } ?>
+  </script>
+  <script src="https://unpkg.com/anchor-link@3"></script>
+  <script src="https://unpkg.com/anchor-link-browser-transport@3"></script>
+  <script src="js/long.js"></script>
+  <!-- Bootstrap Date-Picker Plugin -->
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.4.1/js/bootstrap-datepicker.min.js"></script>
+  <!-- Menu Toggle Script -->
+  <script>
+    $("#menu-toggle").click(function(e) {
+      e.preventDefault();
+      $("#wrapper").toggleClass("toggled");
+    });
+  </script>
+  <script src="js/script.js"></script>
+  <script>
+  // app identifier, should be set to the eosio contract account if applicable
+  const identifier = 'fiogroups'
+  // initialize the browser transport
+  const transport = new AnchorLinkBrowserTransport()
+  // initialize the link
+  const link = new AnchorLink(
+      {
+        transport,
+        chains: [
+            {
+                chainId: '<?php print $chainId; ?>',
+                nodeUrl: '<?php print $nodeUrl; ?>',
+            }
+        ],
+      }
+    );
+  // the session instance, either restored using link.restoreSession() or created with link.login()
+  let session
+  </script>
+</body>
 </html>
