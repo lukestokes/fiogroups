@@ -14,66 +14,70 @@ class Util
     public $transfer_fee;
     public $domain_fee;
 
-    function __construct($client) {
+    public function __construct($client)
+    {
         $this->client = $client;
     }
 
-    function getFIOPublicKey() {
+    public function getFIOPublicKey()
+    {
         if ($this->fio_public_key) {
             return $this->fio_public_key;
         }
         $params = array(
-            "account_name" => $this->actor
+            "account_name" => $this->actor,
         );
         try {
             $get_account_response = $this->client->post('/v1/chain/get_account', [
-                GuzzleHttp\RequestOptions::JSON => $params
+                GuzzleHttp\RequestOptions::JSON => $params,
             ]);
             $response = json_decode($get_account_response->getBody());
             //var_dump($response);
             foreach ($response->permissions as $key => $permission) {
-              //var_dump($permission);
-              if ($permission->perm_name == "active") {
-                  if (isset($permission->required_auth->keys[0])) {
-                      $this->fio_public_key = $permission->required_auth->keys[0]->key;
-                  }
-              }
+                //var_dump($permission);
+                if ($permission->perm_name == "active") {
+                    if (isset($permission->required_auth->keys[0])) {
+                        $this->fio_public_key = $permission->required_auth->keys[0]->key;
+                    }
+                }
             }
-        } catch(\Exception $e) {
+        } catch (\Exception $e) {
             //print $e->getMessage() . "\n";
         }
         return $this->fio_public_key;
     }
 
-    function getFIOBalance() {
+    public function getFIOBalance()
+    {
         if ($this->balance) {
             return $this->balance;
         }
         $this->getFIOPublicKey();
-        $params = ["fio_public_key" => $this->fio_public_key];
+        $params                   = ["fio_public_key" => $this->fio_public_key];
         $get_fio_balance_response = $this->client->post('/v1/chain/get_fio_balance', [
-            GuzzleHttp\RequestOptions::JSON => $params
+            GuzzleHttp\RequestOptions::JSON => $params,
         ]);
         $fio_balance_results = json_decode($get_fio_balance_response->getBody(), true);
-        $balance = $fio_balance_results['balance'];
-        $balance = $balance / 1000000000;
-        $this->balance = $balance;
+        $balance             = $fio_balance_results['balance'];
+        $balance             = $balance / 1000000000;
+        $this->balance       = $balance;
         return $this->balance;
     }
 
-    function getFee($endpoint,$fio_address) {
+    public function getFee($endpoint, $fio_address)
+    {
         $fee = 0;
         try {
             $params = array(
-                "end_point" => $endpoint,
-                "fio_address" => $fio_address
+                "end_point"   => $endpoint,
+                "fio_address" => $fio_address,
             );
             $response = $this->client->post('/v1/chain/get_fee', [
-                GuzzleHttp\RequestOptions::JSON => $params
+                GuzzleHttp\RequestOptions::JSON => $params,
             ]);
             $result = json_decode($response->getBody());
-            $fee = $result->fee;
-        } catch(\Exception $e) { }
+            $fee    = $result->fee;
+        } catch (\Exception $e) {}
         return $fee + ($fee * .1); // add 10% extra in case something changes between now and when it is executed.
     }
 
@@ -81,15 +85,15 @@ class Util
     {
         try {
             $params = array(
-                "json" => true,
-                "code" => "eosio.msig",
-                "scope" => $account,
-                "table" => "proposal",
-                "lower_bound" => $membership_proposal_name,
-                "upper_bound" => "",
+                "json"           => true,
+                "code"           => "eosio.msig",
+                "scope"          => $account,
+                "table"          => "proposal",
+                "lower_bound"    => $membership_proposal_name,
+                "upper_bound"    => "",
                 "index_position" => 1,
-                "key_type" => "name",
-                "limit" => 1,
+                "key_type"       => "name",
+                "limit"          => 1,
             );
             $response = $this->client->post('/v1/chain/get_table_rows', [
                 GuzzleHttp\RequestOptions::JSON => $params,
@@ -99,33 +103,38 @@ class Util
         return $result;
     }
 
-    function getTransferFee() {
+    public function getTransferFee()
+    {
         if ($this->transfer_fee) {
             return $this->transfer_fee;
         }
-        $this->transfer_fee = $this->getFee("transfer_tokens_pub_key","faucet@stokes");
+        $this->transfer_fee = $this->getFee("transfer_tokens_pub_key", "faucet@stokes");
         return $this->transfer_fee;
     }
-    function getRegisterDomainFee() {
+    public function getRegisterDomainFee()
+    {
         if ($this->domain_fee) {
             return $this->domain_fee;
         }
-        $this->domain_fee = $this->getFee("register_fio_domain","faucet@stokes");
+        $this->domain_fee = $this->getFee("register_fio_domain", "faucet@stokes");
         return $this->domain_fee;
     }
-    function FIOToSUF($amount) {
-      return ($amount * 1000000000);
+    public function FIOToSUF($amount)
+    {
+        return ($amount * 1000000000);
     }
-    function SUFToFIO($amount) {
-      return ($amount / 1000000000);
+    public function SUFToFIO($amount)
+    {
+        return ($amount / 1000000000);
     }
 
-    function getProposalName() {
-      $proposal_name = "";
-      for ($i = 0; $i < 7; $i++) {
-        $proposal_name .= rand(1,5);
-      }
-      return "apply" + $proposal_name;
+    public function getProposalName()
+    {
+        $proposal_name = "";
+        for ($i = 0; $i < 7; $i++) {
+            $proposal_name .= rand(1, 5);
+        }
+        return "apply"+$proposal_name;
     }
 
 }
@@ -153,7 +162,7 @@ class BaseObject
 
     public $internal_fields      = array('internal_fields', 'non_printable_fields', 'sort_field', 'dataDir', 'dataStore', 'factory');
     public $non_printable_fields = array();
-    public $sort_field = "_id";
+    public $sort_field           = "_id";
     public $dataDir;
     public $dataStore;
     public $factory;
@@ -247,45 +256,50 @@ class BaseObject
     function print($format = "", $controls = array()) {
         $object_data           = $this->getData();
         $printable_object_data = $this->getPrintableFields();
-        if ($format == "") {
-            foreach ($printable_object_data as $key => $value) {
-                print $key . " = " . $value . br();
-            }
-        }
-        $display_keys = array();
+        $display_keys          = array();
         foreach ($object_data as $key => $value) {
             $display_keys[] = '$' . $key;
         }
+        $values_to_display = array();
+        foreach ($printable_object_data as $key => $value) {
+            $value_to_display = $value;
+            if (substr($key, 0, 3) == "is_") {
+                if ($value) {
+                    $value_to_display = "true";
+                } else {
+                    $value_to_display = "false";
+                }
+            } elseif (strpos($key, "date") !== false && $key != "candidate_account") {
+                if ($value) {
+                    $value_to_display = date("Y-m-d H:i:s", $value);
+                } else {
+                    $value_to_display = "";
+                }
+            }
+            $values_to_display[$key] = $value_to_display;
+            $object_data[$key]       = $value_to_display;
+        }
+        $updated_values_to_display = array();
+        foreach ($values_to_display as $key => $value_to_display) {
+            $updated_value_to_display = $value_to_display;
+            if (array_key_exists($key, $controls)) {
+                $updated_value_to_display = str_replace(
+                    $display_keys,
+                    $object_data,
+                    $controls[$key]);
+            }
+            $updated_values_to_display[$key] = $updated_value_to_display;
+        }
+        $values_to_display = $updated_values_to_display;
+        if ($format == "") {
+            foreach ($values_to_display as $key => $value_to_display) {
+                print "<b>" . ucwords(str_replace("_", " ", $key)) . "</b>: " . $value_to_display . br();
+            }
+        }
         if ($format == "table") {
             print "<tr>\n";
-            // pre-parse
-            $values_to_display = array();
-            foreach ($printable_object_data as $key => $value) {
-                $value_to_display = $value;
-                if (substr($key, 0, 3) == "is_") {
-                    if ($value) {
-                        $value_to_display = "true";
-                    } else {
-                        $value_to_display = "false";
-                    }
-                } elseif (strpos($key, "date") !== false && $key != "candidate_account") {
-                    if ($value) {
-                        $value_to_display = date("Y-m-d H:i:s", $value);
-                    } else {
-                        $value_to_display = "";
-                    }
-                }
-                $values_to_display[$key] = $value_to_display;
-                $object_data[$key]       = $value_to_display;
-            }
             foreach ($values_to_display as $key => $value_to_display) {
                 print "<td>";
-                if (array_key_exists($key, $controls)) {
-                    $value_to_display = str_replace(
-                        $display_keys,
-                        $object_data,
-                        $controls[$key]);
-                }
                 print $value_to_display;
                 print "</td>\n";
             }
@@ -373,7 +387,7 @@ change permissions on the account to be the account who created it
 create domain in that qccount
 create fio address in that account
 
-*/
+ */
 
         // TODO: check to see if this key has an account yet
         $Group->group_fio_public_key = $fio_public_key;
@@ -390,7 +404,7 @@ create fio address in that account
         $Group->save();
 
         // TODO: adjust the permissions of the group so that $creator_account is the owner
-        $bio = "I am Satoshi.";
+        $bio           = "I am Satoshi.";
         $proposal_name = "creator";
         $Group->apply($creator_account, $creator_member_name, $bio, $membership_payment_transaction_id, $proposal_name);
         $Group->approve($creator_account);
@@ -747,8 +761,8 @@ class PendingMember extends BaseObject
      */
     public $membership_payment_transaction_id;
     public $membership_proposal_name;
-    public $non_printable_fields = array('domain','membership_payment_transaction_id','membership_proposal_name');
-    public $sort_field = "application_date";
+    public $non_printable_fields = array('domain', 'membership_payment_transaction_id', 'membership_proposal_name');
+    public $sort_field           = "application_date";
 }
 
 class Member extends BaseObject
@@ -777,7 +791,7 @@ class Member extends BaseObject
     public $last_login_date;
 
     public $non_printable_fields = array('domain');
-    public $sort_field = "date_added";
+    public $sort_field           = "date_added";
 }
 
 class AdminCandidate extends BaseObject
@@ -813,7 +827,7 @@ class Vote extends BaseObject
      */
     public $date_of_vote;
     public $non_printable_fields = array('domain');
-    public $sort_field = "vote_weight";
+    public $sort_field           = "vote_weight";
 }
 
 class VoteResult extends BaseObject
@@ -833,7 +847,7 @@ class VoteResult extends BaseObject
      */
     public $votes;
     public $non_printable_fields = array('domain');
-    public $sort_field = "rank";
+    public $sort_field           = "rank";
 }
 
 class Election extends BaseObject
@@ -873,8 +887,8 @@ class Election extends BaseObject
     public $results_proposer;
     public $results_proposal_name;
 
-    public $non_printable_fields = array('domain','results_proposer','results_proposal_name');
-    public $sort_field = "epoch";
+    public $non_printable_fields = array('domain', 'results_proposer', 'results_proposal_name');
+    public $sort_field           = "epoch";
 
     public function vote($voter_account, $candidate_account, $rank, $vote_weight)
     {
@@ -984,14 +998,14 @@ class Election extends BaseObject
             }
             $rank++;
         }
-        $this->is_complete    = true;
+        $this->is_complete = true;
         $this->save();
     }
 
     public function getVoteResults()
     {
-        $VoteResult = $this->factory->new("VoteResult");
-        $criteria = [["domain","=",$this->domain],["epoch","=",$this->epoch]];
+        $VoteResult   = $this->factory->new("VoteResult");
+        $criteria     = [["domain", "=", $this->domain], ["epoch", "=", $this->epoch]];
         $vote_results = $VoteResult->readAll($criteria);
         return $vote_results;
     }

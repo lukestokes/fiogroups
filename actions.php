@@ -11,51 +11,51 @@ if ($action == "testing_change_vote_date") {
 }
 /*
 if ($action == "testing_clear_all_data") {
-    exec("rm -rf \"" . __DIR__ . "/data\"");
-    exec("mkdir \"" . __DIR__ . "/data\"");
+exec("rm -rf \"" . __DIR__ . "/data\"");
+exec("mkdir \"" . __DIR__ . "/data\"");
 }
 if ($action == "testing_make_admin") {
-    $Member   = $Factory->new("Member");
-    $criteria = [["domain", "=", $domain], ["account", "=", $logged_in_user]];
-    try {
-        $found = $Member->read($criteria);
-        if ($found) {
-            $Member->is_admin = true;
-            $Member->save();
-            $is_admin = true;
-        }
-    } catch (Exception $e) {
-        $notice = $e->getMessage();
-    }
+$Member   = $Factory->new("Member");
+$criteria = [["domain", "=", $domain], ["account", "=", $logged_in_user]];
+try {
+$found = $Member->read($criteria);
+if ($found) {
+$Member->is_admin = true;
+$Member->save();
+$is_admin = true;
+}
+} catch (Exception $e) {
+$notice = $e->getMessage();
+}
 }
 if ($action == "testing_unmake_admin") {
-    $Member   = $Factory->new("Member");
-    $criteria = [["domain", "=", $domain], ["account", "=", $logged_in_user]];
-    try {
-        $found = $Member->read($criteria);
-        if ($found) {
-            $Member->is_admin = false;
-            $Member->save();
-            $is_admin = false;
-        }
-    } catch (Exception $e) {
-        $notice = $e->getMessage();
-    }
+$Member   = $Factory->new("Member");
+$criteria = [["domain", "=", $domain], ["account", "=", $logged_in_user]];
+try {
+$found = $Member->read($criteria);
+if ($found) {
+$Member->is_admin = false;
+$Member->save();
+$is_admin = false;
 }
-*/
+} catch (Exception $e) {
+$notice = $e->getMessage();
+}
+}
+ */
 /** FOR TESTING **/
 
-if ($action == "login") {
+if ($action == "finish_login") {
     $proof = json_decode($_REQUEST["identity_proof"], true);
     try {
         $identity_response = $client->post('https://eosio.greymass.com/prove', [
             GuzzleHttp\RequestOptions::JSON => ['proof' => $proof], // or 'json' => [...]
         ]);
-        $identity_results = json_decode($identity_response->getBody(), true);
-        $logged_in_user   = $identity_results["account_name"];
+        $identity_results        = json_decode($identity_response->getBody(), true);
+        $logged_in_user          = $identity_results["account_name"];
         $_SESSION['username']    = $identity_results["account_name"];
-        $Util->actor = $_SESSION['username'];
-        $fio_balance = $Util->getFIOBalance();
+        $Util->actor             = $_SESSION['username'];
+        $fio_balance             = $Util->getFIOBalance();
         $_SESSION['fio_balance'] = $fio_balance;
         // are they a member of any Groups?
         $Member   = $Factory->new("Member");
@@ -65,7 +65,7 @@ if ($action == "login") {
         }
         $members = $Member->readAll($criteria);
         if (count($members)) {
-            $Member                  = $members[0];
+            $Member = $members[0];
             // TODO: check this against onchain data of the permissions of the group
             $is_admin                = $Member->is_admin;
             $_SESSION['fio_address'] = $Member->member_name . "@" . $Member->domain;
@@ -98,8 +98,8 @@ if ($action == "create_group") {
             strip_tags($_POST["domain"]),
             strip_tags($_POST["member_application_fee"])
         );
-        $Util->balance = null;
-        $fio_balance = $Util->getFIOBalance();
+        $Util->balance           = null;
+        $fio_balance             = $Util->getFIOBalance();
         $_SESSION['fio_balance'] = $fio_balance;
     } catch (Exception $e) {
         $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
@@ -240,8 +240,8 @@ if ($action == "record_vote_results") {
 
 if ($action == "complete_election") {
     try {
-        $Election = $Group->getCurrentElection();
-        $Election->results_proposer = strip_tags($_REQUEST["results_proposer"]);
+        $Election                        = $Group->getCurrentElection();
+        $Election->results_proposer      = strip_tags($_REQUEST["results_proposer"]);
         $Election->results_proposal_name = strip_tags($_REQUEST["results_proposal_name"]);
         $Election->save();
         $notice = 'Election complete. Please certify the voting results by asking the admins to approve the msig.';
@@ -257,7 +257,6 @@ if ($action == "certify_vote_results") {
         $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
     }
 }
-
 
 if ($notice != "") {
     ?>
