@@ -115,9 +115,6 @@ include "header.php";
 
             <p>
               [<a href="?action=testing_change_vote_date&domain=<?php print $domain; ?>">TESTING: Change Election Vote Date</a>]<br />
-              [<a href="?action=testing_clear_all_data&domain=<?php print $domain; ?>">TESTING: Clear Data</a>]<br />
-              [<a href="?action=testing_make_admin&domain=<?php print $domain; ?>">TESTING: Make Admin</a>]<br />
-              [<a href="?action=testing_unmake_admin&domain=<?php print $domain; ?>">TESTING: Unmake Admin</a>]<br />
               <span id="feedback"></span><br />
             </p>
 

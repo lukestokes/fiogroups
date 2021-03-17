@@ -9,6 +9,7 @@ if ($action == "testing_change_vote_date") {
         $notice = "TESTING: Election vote date set in the past.";
     } catch (Exception $e) {}
 }
+/*
 if ($action == "testing_clear_all_data") {
     exec("rm -rf \"" . __DIR__ . "/data\"");
     exec("mkdir \"" . __DIR__ . "/data\"");
@@ -41,6 +42,7 @@ if ($action == "testing_unmake_admin") {
         $notice = $e->getMessage();
     }
 }
+*/
 /** FOR TESTING **/
 
 if ($action == "login") {
