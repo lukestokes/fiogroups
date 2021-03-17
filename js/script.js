@@ -78,18 +78,34 @@ $(document).ready(function(){
 async function verifyOwners(domain, admins, vote_threshold) {
   const group_account_from_domain = await getDomainOwner(domain);
   const group_account_info = await chainGet('get_account',{account_name: group_account_from_domain});
-  on_chain_admins = [];
+  active_on_chain_admins = [];
+  owner_on_chain_admins = [];
   for (i = 0; i < group_account_info.permissions.length; i++) {
     if (group_account_info.permissions[i].perm_name == "active") {
       for (j = 0; j < group_account_info.permissions[i].required_auth.accounts.length; j++) {
-        on_chain_admins[on_chain_admins.length] = group_account_info.permissions[i].required_auth.accounts[j].permission.actor;
+        active_on_chain_admins[active_on_chain_admins.length] = group_account_info.permissions[i].required_auth.accounts[j].permission.actor;
+      }
+    }
+    if (group_account_info.permissions[i].perm_name == "owner") {
+      for (j = 0; j < group_account_info.permissions[i].required_auth.accounts.length; j++) {
+        owner_on_chain_admins[owner_on_chain_admins.length] = group_account_info.permissions[i].required_auth.accounts[j].permission.actor;
       }
     }
   }
-  if (JSON.stringify(admins)==JSON.stringify(on_chain_admins)) {
-    alert("The permissions for " + group_account_from_domain + " are correct on chain.");
+  admins.sort();
+  owner_on_chain_admins.sort();
+  active_on_chain_admins.sort();
+
+  is_correct = true;
+  if (JSON.stringify(admins)==JSON.stringify(owner_on_chain_admins) && JSON.stringify(admins)==JSON.stringify(active_on_chain_admins)) {
+    alert("The owner and active permissions for " + group_account_from_domain + " are correct on chain: " + JSON.stringify(owner_on_chain_admins));
   } else {
-    alert("The permissions on chain are not correct. Let's propose an msig to fix this: " + JSON.stringify(admins) + " and " + JSON.stringify(on_chain_admins));
+    is_correct = false;
+    onchain_string = "Owner: " + JSON.stringify(owner_on_chain_admins) + " Active: " + JSON.stringify(active_on_chain_admins);
+    alert("The account permissions on chain are not correct. Let's propose an msig to fix this so what is on chain: " + onchain_string + " will be updated to match the vote results: " + JSON.stringify(admins));
+  }
+
+  if (!is_correct) {
     completeElection(domain, admins, vote_threshold);
   }
 }
@@ -129,17 +145,23 @@ async function completeElection(domain, new_admins, vote_threshold) {
   const eosiomsig_abi = await getABI('eosio.msig');
   const proposal_name = getProposalName();
 
-  const info = await link.client.v1.chain.get_info()
-  header = info.getTransactionHeader()
-
   const expiration_days_in_seconds = (60 * 60 * 24 * 7) // seconds, minutes, hours, days
 
-  header.expiration = new AnchorLink.TimePointSec(AnchorLink.UInt32.from(header.expiration.value.value + expiration_days_in_seconds));
+  expiration = new AnchorLink.TimePointSec(AnchorLink.UInt32.from((Date.now()/1000) + expiration_days_in_seconds));
 
-  const transaction = AnchorLink.Transaction.from({
-      ...header,
-      actions: [upate_active_action,upate_owner_action],
-  })
+  raw_transaction = {
+    expiration: expiration,
+    ref_block_num: 0,
+    ref_block_prefix: 0,
+    max_net_usage_words: 0,
+    max_cpu_usage_ms: 0,
+    delay_sec: 0,
+    context_free_actions: [],
+    actions: [upate_active_action,upate_owner_action],
+    transaction_extensions: []
+  }
+
+  const transaction = AnchorLink.Transaction.from(raw_transaction)
 
   const group_account_info = await chainGet('get_account',{account_name: group_account_from_domain});
   required_auths = [];

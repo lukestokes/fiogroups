@@ -3,8 +3,8 @@ require_once __DIR__ . '/vendor/autoload.php';
 //$chainId = '21dcae42c0182200e93f954a074011f9048a7624c6fe81d3c9541a614a88bd1c';
 //$nodeUrl = 'https://fio.greymass.com';
 $chainId = 'b20901380af44ef59c5918439a1f9a41d83669020319a80574b804a5f95cbd7e';
-$nodeUrl = 'https://testnet.fioprotocol.io';
-//$nodeUrl = 'https://testnet.fio.eosdetroit.io';
+//$nodeUrl = 'https://testnet.fioprotocol.io';
+$nodeUrl = 'https://testnet.fio.eosdetroit.io';
 //$client = new GuzzleHttp\Client(['base_uri' => 'http://fio.greymass.com']);
 $client = new GuzzleHttp\Client(['base_uri' => $nodeUrl]);
 //$explorer_url = "https://fio.bloks.io/";
@@ -54,7 +54,7 @@ include "header.php";
 
           if ($domain != "") {
             ?>
-            <h1><?php print $domain; ?></h1>
+            <h1><a href="<?php print $explorer_url; ?>account/<?php print $Group->group_account; ?>" target="_blank"><?php print $domain; ?></a></h1>
 
             <p>
               [<a href="?action=testing_change_vote_date&domain=<?php print $domain; ?>">TESTING: Change Election Vote Date</a>]<br />
@@ -296,7 +296,12 @@ include "header.php";
                   'member_name' => '<a href="' . $explorer_url . 'address/$member_name@$domain" target="_blank">$member_name</a>',
                 );
                 if ($logged_in_user == $Member->account) {
-                  $controls['account'] .= ' [<a href="?action=register_candidate&domain=$domain&account=$account">Register Candidate</a>] [<a href="?action=deactivate_member&domain=$domain&account=$account">Deactivate</a>]';
+                  $controls['account'] .= ' [<a href="?action=deactivate_member&domain=$domain&account=$account">Deactivate</a>]';
+                  $AdminCandidate = $Factory->new("AdminCandidate");
+                  $is_admin_candidate = $AdminCandidate->readAll([["domain","=",$domain],["account","=",$Member->account]]);
+                  if (!$is_admin_candidate) {
+                    $controls['account'] .= ' [<a href="?action=register_candidate&domain=$domain&account=$account">Register Candidate</a>]';
+                  }
                 }
                 if ($is_admin) {
                   $controls['account'] .= ' [<a href="?action=disable_member&domain=$domain&account=$account">Disable</a>]';
@@ -317,6 +322,8 @@ include "header.php";
               $pendingmembers[0]->print('table_header');
               foreach ($pendingmembers as $PendingMember) {
                 // TODO: change this to be a javascript form POST, not a get. Protect against CSRF.
+
+                // TODO: check not only that the msig isn't pending, but that the FIO address was assigned.
                 $controls = array(
                   'application_date' => '<a href="' . $explorer_url . 'transaction/$membership_payment_transaction_id" target="_blank">$application_date</a>',
                 );

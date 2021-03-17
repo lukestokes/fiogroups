@@ -1,0 +1,59 @@
+FIRST AFTER GROUP CREATION fiogrouptest33
+
+https://fio-test.bloks.io/block/57439261
+FAILED!
+whyikyans5wc
+eosphere@fiotestnet (Exp. 3/11/2023)
+
+https://fio-test.bloks.io/block/57446058
+WORKED!
+yz5p4rb4begx
+eosiodetroit@fiotestnet (Exp. 3/12/2021)
+
+https://fio-test.bloks.io/block/57446499
+WORKED!
+sweidrpkehv2
+bp@fiosweden (Exp. 3/29/2022)
+
+https://fio-test.bloks.io/block/57446824
+WORKED!
+2v5kbsi1qr2n
+argentinafio@fiotestnet (Exp. 3/11/2022)
+
+https://fio-test.bloks.io/block/57447457
+WORKED!
+gws1hlwlqhq1
+fiotribe@fiotestnet (Exp. 4/2/2021)
+
+FIRST AFTER GROUP CREATION fiogrouptest34
+
+https://fio-test.bloks.io/block/57448509
+FAILED!
+sweidrpkehv2
+bp@fiosweden (Exp. 3/29/2022)
+
+https://fio-test.bloks.io/block/57448841
+WORKED!
+41ksaga2vybn
+eosusa@fiotestnet (Exp. 3/11/2021)
+
+https://fio-test.bloks.io/block/57449491
+WORKED!
+jtc5sczmmyj3
+eosbarcelona@fiotestnet (Exp. 3/20/2023)
+
+FIRST AFTER GROUP CREATION fiogrouptest35
+NOTE: I waited until finality of the account creation
+
+https://fio-test.bloks.io/block/57450360
+WORKED!
+4sxgkrw2svdb
+nodeone@fiotestnet (Exp. 3/23/2021)
+
+FIRST AFTER GROUP CREATION fiogrouptest36
+NOTE: I did NOT wait until finality of the account creation
+
+https://fio-test.bloks.io/block/57451405
+FAILED!
+5du5xkgkki5x
+cryptolions@fiotestnet (Exp. 3/10/2022) 
