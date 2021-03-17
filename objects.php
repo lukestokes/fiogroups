@@ -13,6 +13,8 @@ class Util
     public $balance;
     public $transfer_fee;
     public $domain_fee;
+    public $address_fee;
+    public $transfer_domain_fee;
 
     public function __construct($client)
     {
@@ -118,6 +120,22 @@ class Util
         }
         $this->domain_fee = $this->getFee("register_fio_domain", "faucet@stokes");
         return $this->domain_fee;
+    }
+    public function getRegisterAddressFee()
+    {
+        if ($this->address_fee) {
+            return $this->address_fee;
+        }
+        $this->address_fee = $this->getFee("register_fio_address", "faucet@stokes");
+        return $this->address_fee;
+    }
+    public function getTransferDomainFee()
+    {
+        if ($this->transfer_domain_fee) {
+            return $this->transfer_domain_fee;
+        }
+        $this->transfer_domain_fee = $this->getFee("transfer_fio_domain", "faucet@stokes");
+        return $this->transfer_domain_fee;
     }
     public function FIOToSUF($amount)
     {
