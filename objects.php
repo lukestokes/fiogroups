@@ -151,8 +151,9 @@ class BaseObject
 {
     public $_id;
 
-    public $internal_fields      = array('non_printable_fields', 'internal_fields', 'dataDir', 'dataStore', 'factory');
+    public $internal_fields      = array('internal_fields', 'non_printable_fields', 'sort_field', 'dataDir', 'dataStore', 'factory');
     public $non_printable_fields = array();
+    public $sort_field = "_id";
     public $dataDir;
     public $dataStore;
     public $factory;
@@ -229,7 +230,12 @@ class BaseObject
     public function readAll($criteria)
     {
         $objects      = array();
-        $objects_data = $this->dataStore->findBy($criteria);
+        $queryBuilder = $this->dataStore->createQueryBuilder();
+        $objects_data = $queryBuilder
+            ->where($criteria)
+            ->orderBy([$this->sort_field => "asc"])
+            ->getQuery()
+            ->fetch();
         foreach ($objects_data as $object_data) {
             $Object = $this->factory->new(get_class($this));
             $Object->loadData($object_data);
@@ -742,7 +748,7 @@ class PendingMember extends BaseObject
     public $membership_payment_transaction_id;
     public $membership_proposal_name;
     public $non_printable_fields = array('domain','membership_payment_transaction_id','membership_proposal_name');
-
+    public $sort_field = "application_date";
 }
 
 class Member extends BaseObject
@@ -771,6 +777,7 @@ class Member extends BaseObject
     public $last_login_date;
 
     public $non_printable_fields = array('domain');
+    public $sort_field = "date_added";
 }
 
 class AdminCandidate extends BaseObject
@@ -806,6 +813,7 @@ class Vote extends BaseObject
      */
     public $date_of_vote;
     public $non_printable_fields = array('domain');
+    public $sort_field = "vote_weight";
 }
 
 class VoteResult extends BaseObject
@@ -825,6 +833,7 @@ class VoteResult extends BaseObject
      */
     public $votes;
     public $non_printable_fields = array('domain');
+    public $sort_field = "rank";
 }
 
 class Election extends BaseObject
@@ -865,6 +874,7 @@ class Election extends BaseObject
     public $results_proposal_name;
 
     public $non_printable_fields = array('domain','results_proposer','results_proposal_name');
+    public $sort_field = "epoch";
 
     public function vote($voter_account, $candidate_account, $rank, $vote_weight)
     {

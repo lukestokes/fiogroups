@@ -1,14 +1,16 @@
 <?php
 require_once __DIR__ . '/vendor/autoload.php';
-//$chainId = '21dcae42c0182200e93f954a074011f9048a7624c6fe81d3c9541a614a88bd1c';
-//$nodeUrl = 'https://fio.greymass.com';
-$chainId = 'b20901380af44ef59c5918439a1f9a41d83669020319a80574b804a5f95cbd7e';
-//$nodeUrl = 'https://testnet.fioprotocol.io';
-$nodeUrl = 'https://testnet.fio.eosdetroit.io';
-//$client = new GuzzleHttp\Client(['base_uri' => 'http://fio.greymass.com']);
+$chainId = '21dcae42c0182200e93f954a074011f9048a7624c6fe81d3c9541a614a88bd1c';
+$nodeUrl = 'https://fio.greymass.com';
+$explorer_url = "https://fio.bloks.io/";
+$use_testnet = true;
+if ($use_testnet) {
+  $chainId = 'b20901380af44ef59c5918439a1f9a41d83669020319a80574b804a5f95cbd7e';
+  //$nodeUrl = 'https://testnet.fioprotocol.io';
+  $nodeUrl = 'https://testnet.fio.eosdetroit.io';
+  $explorer_url = "https://fio-test.bloks.io/";
+}
 $client = new GuzzleHttp\Client(['base_uri' => $nodeUrl]);
-//$explorer_url = "https://fio.bloks.io/";
-$explorer_url = "https://fio-test.bloks.io/";
 include "header.php";
 ?>
 <!doctype html>
@@ -47,6 +49,9 @@ include "header.php";
     <div class="container-fluid">
       <div class="row m-3">
           <?php
+          if ($use_testnet) {
+            print "<h3 style='color:red'>TESTNET</h3>";
+          }
           if (isset($_SESSION["username"])) {
             print "<h3>Authenticated: " . $_SESSION["username"] . " (" . $_SESSION['fio_balance'] . " FIO)</h3>";
             print '<p>[<a href="?logout">Logout</a>]</p>';
@@ -61,6 +66,7 @@ include "header.php";
               [<a href="?action=testing_clear_all_data&domain=<?php print $domain; ?>">TESTING: Clear Data</a>]<br />
               [<a href="?action=testing_make_admin&domain=<?php print $domain; ?>">TESTING: Make Admin</a>]<br />
               [<a href="?action=testing_unmake_admin&domain=<?php print $domain; ?>">TESTING: Unmake Admin</a>]<br />
+              <span id="feedback"></span><br />
             </p>
 
             <h2>Admins:</h2>
@@ -459,6 +465,7 @@ include "header.php";
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
     <script>
     var nodeUrl = '<?php print $nodeUrl; ?>';
+    var explorer_url = '<?php print $explorer_url; ?>';
     <?php if (isset($_GET{'login'})) { ?>
       $(function() {
         login();

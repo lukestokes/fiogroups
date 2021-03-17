@@ -198,8 +198,12 @@ async function completeElection(domain, new_admins, vote_threshold) {
     console.log("done")
     console.log(actions_result.processed.id);
 
-    $("#results_proposal_name").val(proposal_name);
-    $("#results_proposer").val(session.auth.actor);
+    if ($('#election')) { // fix this
+      $("#results_proposal_name").val(proposal_name);
+      $("#results_proposer").val(session.auth.actor);
+    }
+
+    $("#feedback").html($("#feedback").html() + ' <a href="' + explorer_url + 'msig/' + session.auth.actor + '/' + proposal_name + '" target="_blank">View Msig: ' + proposal_name + '</a>');
 
   } catch (err) {
     console.log(err);
