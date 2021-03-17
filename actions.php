@@ -111,7 +111,7 @@ if ($action == "apply_to_group") {
             strip_tags($_POST["member_name_requested"]),
             strip_tags($_POST["bio"]),
             strip_tags($_POST["membership_payment_transaction_id"]),
-            strip_tags($_POST["membership_proposal_name"]),
+            strip_tags($_POST["membership_proposal_name"])
         );
     } catch (Exception $e) {
         $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
@@ -140,7 +140,7 @@ if ($action == "create_election") {
             strip_tags($_REQUEST["number_of_admins"]),
             strip_tags($_REQUEST["vote_threshold"]),
             strip_tags($_REQUEST["votes_per_member"]),
-            $vote_date,
+            $vote_date
         );
     } catch (Exception $e) {
         $notice = '<div class="alert alert-danger" role="alert">' . $e->getMessage() . '</div>';
@@ -219,7 +219,7 @@ if ($action == "remove_vote") {
     try {
         $Group->removeVote(
             strip_tags($logged_in_user),
-            strip_tags($_REQUEST["candidate_account"]),
+            strip_tags($_REQUEST["candidate_account"])
         );
         $action = "show_votes";
     } catch (Exception $e) {
