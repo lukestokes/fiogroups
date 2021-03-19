@@ -135,6 +135,8 @@ async function completeElection(domain, new_admins, vote_threshold) {
     return ;
   }
 
+  new_admins.sort();
+
   auth_update_fee = await getFIOChainFee('auth_update');
   //auth_update_fee = auth_update_fee * 5;
   const eosio_abi = await getABI('eosio');

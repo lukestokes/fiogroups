@@ -719,6 +719,23 @@ create fio address in that account
         return $has_election;
     }
 
+    public function getLastCertifiedElection()
+    {
+        $Election     = $this->factory->new("Election");
+        $queryBuilder = $Election->dataStore->createQueryBuilder();
+        $criteria     = [["domain", "=", $this->domain], ["is_complete", "=", true], ["date_certified", "!=", null]];
+        $objects_data = $queryBuilder
+            ->where($criteria)
+            ->orderBy(["date_certified" => "desc"])
+            ->getQuery()
+            ->fetch();
+        if (!isset($objects_data[0])) {
+            throw new Exception("No previous certified election found for " . $this->domain . " can't be found.", 1);
+        }
+        $Election->loadData($objects_data[0]);
+        return $Election;
+    }
+
     public function getCurrentElection()
     {
         $Election = $this->factory->new("Election");

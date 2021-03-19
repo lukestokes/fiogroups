@@ -126,12 +126,12 @@ if (isset($_SESSION["username"])) {
               </a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
                 <?php
-                if (isset($_SESSION['fio_balance'])) {
-                ?>
-                <div class="dropdown-item"><?php print number_format($_SESSION['fio_balance'],3); ?> FIO</div>
+if (isset($_SESSION['fio_balance'])) {
+    ?>
+                <div class="dropdown-item"><?php print number_format($_SESSION['fio_balance'], 3);?> FIO</div>
                 <?php
-                }
-                ?>
+}
+?>
                 <a class="dropdown-item" href="?action=show_create_group">Create Group</a>
                 <a class="dropdown-item" href="?action=logout">Logout</a>
                 <div class="dropdown-divider"></div>
@@ -162,7 +162,7 @@ if ($domain != "") {
         ?>
         <h1>Welcome to <?php print $domain;?>!</h1>
         <?php
-        $Group->print();
+$Group->print();
     }
 
     if ($show == "admins") {
@@ -170,7 +170,7 @@ if ($domain != "") {
               <h2>Admins:</h2>
               <table class="table table-striped table-bordered">
               <?php
-        $admins = $Group->getAdmins();
+$admins = $Group->getAdmins();
         if (count($admins)) {
             $admins[0]->print('table_header');
         }
@@ -183,21 +183,25 @@ if ($domain != "") {
         $admin_accounts_string .= ']';
         ?>
               </table>
-
-              <!-- fix this threshold. Need to pull from the data, the last completed election -->
-
+              <?php
+$last_certified_election_vote_threshold = 1;
+        try {
+            $Election                               = $Group->getLastCertifiedElection();
+            $last_certified_election_vote_threshold = $Election->vote_threshold;
+        } catch (Exception $e) {}
+        ?>
               <div class="form-group">
-                <button type="submit" class="btn btn-primary" onclick="verifyOwners('<?php print $domain;?>',<?php print $admin_accounts_string;?>,1); return false;">Verify</button>
+                <button type="submit" class="btn btn-primary" onclick="verifyOwners('<?php print $domain;?>',<?php print $admin_accounts_string;?>,<?php print $last_certified_election_vote_threshold;?>); return false;">Verify</button>
               </div>
 
               <?php
-        $admincandidates = $Group->getAdminCandidates();
+$admincandidates = $Group->getAdminCandidates();
         if (count($admincandidates)) {
             ?>
                 <h2>Admin Candidates:</h2>
                 <table class="table table-striped table-bordered">
                 <?php
-            $admincandidates[0]->print('table_header');
+$admincandidates[0]->print('table_header');
             foreach ($admincandidates as $AdminCandidate) {
                 $controls = array();
                 if ($Group->hasActiveElection()) {
@@ -210,7 +214,7 @@ if ($domain != "") {
             ?>
                 </table>
                 <?php
-        }
+}
     }
 
     if ($show == "elections") {
@@ -231,7 +235,7 @@ if ($domain != "") {
             ?>
                 <table class="table table-striped table-bordered">
                 <?php
-            $all_elections[0]->print('table_header');
+$all_elections[0]->print('table_header');
             foreach ($all_elections as $Election) {
                 $Election->print('table');
             }
@@ -241,7 +245,7 @@ if ($domain != "") {
               <h2>Current Election:</h2>
 
                 <?php
-        }
+}
         $show_create_election = false;
         $show_vote_results    = false;
         $election_form_values = array();
@@ -259,7 +263,7 @@ if ($domain != "") {
             ?>
                 <table class="table table-striped table-bordered">
                 <?php
-            $Election->print('table_header');
+$Election->print('table_header');
             $controls = array(
                 'vote_date' => '$vote_date<br /><a href="?show=elections&action=show_votes&domain=$domain" class="btn btn-secondary btn-sm">Show Votes</a>',
             );
@@ -282,7 +286,7 @@ if ($domain != "") {
                             }
                             $new_admin_string = trim($new_admin_string, ",");
                             $new_admin_string .= ']';
-                            $controls['vote_date'] .= '<br /><a href="#" class="btn btn-secondary btn-sm" onclick="completeElection(\'$domain\',' . $new_admin_string . ',' . $Election->vote_threshold . '); return false;">Complete Election</a>]';
+                            $controls['vote_date'] .= '<br /><a href="#" class="btn btn-secondary btn-sm" onclick="completeElection(\'$domain\',' . $new_admin_string . ',' . $Election->vote_threshold . '); return false;">Complete Election</a>';
                         }
                     } else {
                         // TODO: don't show viewmsig if there is no msig (maybe it tried and failed or something)
@@ -314,7 +318,7 @@ if ($show_vote_results || $action == "show_vote_results") {
                     <h3>Vote Results</h3>
                     <table class="table table-striped table-bordered">
                     <?php
-                    $vote_results[0]->print('table_header');
+$vote_results[0]->print('table_header');
                     foreach ($vote_results as $VoteResult) {
                         $VoteResult->print('table');
                     }
@@ -332,7 +336,7 @@ if ($show_vote_results || $action == "show_vote_results") {
                     <h3>Votes</h3>
                     <table class="table table-striped table-bordered">
                     <?php
-                    $votes[0]->print('table_header');
+$votes[0]->print('table_header');
                     foreach ($votes as $Vote) {
                         $controls = array();
                         if ($logged_in_user == $Vote->voter_account) {
@@ -343,8 +347,31 @@ if ($show_vote_results || $action == "show_vote_results") {
                     ?>
                     </table>
                     <?php
-                }
+}
             }
+
+            // NOTE: this is duplicated above as well.
+            $admincandidates = $Group->getAdminCandidates();
+            if (count($admincandidates)) {
+                ?>
+                    <h2>Admin Candidates:</h2>
+                    <table class="table table-striped table-bordered">
+                    <?php
+$admincandidates[0]->print('table_header');
+                foreach ($admincandidates as $AdminCandidate) {
+                    $controls = array();
+                    if ($Group->hasActiveElection()) {
+                        $controls = array(
+                            'account' => '$account [<a href="?show=elections&action=vote&domain=$domain&candidate_account=$account">Vote</a>]',
+                        );
+                    }
+                    $AdminCandidate->print('table', $controls);
+                }
+                ?>
+                    </table>
+                    <?php
+}
+
         } catch (Exception $e) {
             $show_create_election = true;
         }
@@ -360,7 +387,7 @@ if ($show_vote_results || $action == "show_vote_results") {
                     <input type="hidden" name="action" value="create_election">
                     <input type="hidden" name="domain" value="<?php print $domain;?>">
                       <?php
-                $Election = $Factory->new("Election");
+$Election = $Factory->new("Election");
                 print $Election->formHTML($election_form_values);
                 $vote_date = date("Y-m-d", time() + (30 * 24 * 60 * 60));
                 ?>
@@ -375,7 +402,7 @@ if ($show_vote_results || $action == "show_vote_results") {
                     </div>
                   </form>
                   <?php
-            }
+}
         }
     }
 
@@ -389,7 +416,7 @@ if ($show_vote_results || $action == "show_vote_results") {
             ?>
                 <table id="inactive_members" class="table table-striped table-bordered">
                 <?php
-            $inactive_members[0]->print('table_header');
+$inactive_members[0]->print('table_header');
             foreach ($inactive_members as $InactiveMember) {
                 $controls = array(
                     'account' => '$account<br /><a href="?show=inactive_members&action=activate_member&domain=$domain&account=$account" class="btn btn-secondary btn-sm">Activate</a>',
@@ -402,7 +429,7 @@ if ($show_vote_results || $action == "show_vote_results") {
             ?>
                 </table>
                 <?php
-        } else {
+} else {
             print "<p>There are currently no inactive members</p>";
         }
 
@@ -418,7 +445,7 @@ if ($show_vote_results || $action == "show_vote_results") {
             ?>
                 <table id="disabled_members" class="table table-striped table-bordered">
                 <?php
-            $disabled_members[0]->print('table_header');
+$disabled_members[0]->print('table_header');
             foreach ($disabled_members as $DisabledMember) {
                 $controls = array();
                 if ($is_admin) {
@@ -431,7 +458,7 @@ if ($show_vote_results || $action == "show_vote_results") {
             ?>
                 </table>
                 <?php
-        } else {
+} else {
             print "<p>There are currently no disabled members</p>";
         }
 
@@ -447,7 +474,7 @@ if ($show_vote_results || $action == "show_vote_results") {
             ?>
                 <table id="members" class="table table-striped table-bordered">
                 <?php
-            $members[0]->print('table_header');
+$members[0]->print('table_header');
             foreach ($members as $Member) {
                 $controls = array(
                     'account'     => '$account',
@@ -469,7 +496,7 @@ if ($show_vote_results || $action == "show_vote_results") {
             ?>
                 </table>
                 <?php
-    } else {
+} else {
             print "<p>There are currently no members</p>";
         }
     }
@@ -484,7 +511,7 @@ if ($show_vote_results || $action == "show_vote_results") {
             ?>
                 <table id="pending_members" class="table table-striped table-bordered">
                 <?php
-            $pendingmembers[0]->print('table_header');
+$pendingmembers[0]->print('table_header');
             foreach ($pendingmembers as $PendingMember) {
                 // TODO: change this to be a javascript form POST, not a get. Protect against CSRF.
 
@@ -500,7 +527,7 @@ if ($show_vote_results || $action == "show_vote_results") {
             ?>
                 </table>
                 <?php
-        } else {
+} else {
             print "<p>There are currently no pending members</p>";
         }
 
@@ -522,7 +549,7 @@ if ($show_vote_results || $action == "show_vote_results") {
                   <input type="hidden" id="membership_payment_transaction_id" name="membership_payment_transaction_id" value="">
                   <input type="hidden" id="membership_proposal_name" name="membership_proposal_name" value="">
                     <?php
-            /*
+/*
             $PendingMember = $Factory->new("PendingMember");
             print $PendingMember->formHTML();
              */
@@ -544,7 +571,7 @@ if ($show_vote_results || $action == "show_vote_results") {
                   </div>
                 </form>
                 <?php
-        }
+}
     }
 }
 
@@ -587,7 +614,7 @@ if ($domain == "") {
                         </div>
                     </div>
                     <?php
-            $Group = $Factory->new("Group");
+$Group = $Factory->new("Group");
             print $Group->formHTML();
             ?>
                     <div class="form-group">
@@ -595,7 +622,7 @@ if ($domain == "") {
                     </div>
                   </form>
                 <?php
-        }
+}
     }
 
     if ($action == "" || $action == "home") {
@@ -626,7 +653,7 @@ $groups[0]->print('table_header');
             ?>
                 </table>
                 <?php
-        }
+}
     }
 }
 ?>
