@@ -56,19 +56,19 @@ include "header.php";
     <!-- Sidebar -->
     <div class="bg-light border-right" id="sidebar-wrapper">
       <div class="sidebar-heading">FIO Groups<br />
-        <?php
-if ($domain != "") {
-    ?>
+      <?php
+      if ($domain != "") {
+      ?>
         <a href="<?php print $explorer_url;?>account/<?php print $Group->group_account;?>" target="_blank" class="list-group-item list-group-item-action bg-light"><?php print $domain;?></a>
-        <?php
-}
-?>
+      <?php
+      }
+      ?>
       </div>
       <div class="list-group list-group-flush">
         <a href="?action=home" class="list-group-item list-group-item-action bg-light">All Groups</a>
         <?php
-if ($domain != "") {
-    ?>
+        if ($domain != "") {
+        ?>
         <a href="?domain=<?php print $domain;?>&show=" class="list-group-item list-group-item-action bg-light">Group Home</a>
         <a href="?domain=<?php print $domain;?>&show=apply_for_membership" class="list-group-item list-group-item-action bg-light">Apply For Membership</a>
         <a href="?domain=<?php print $domain;?>&show=pending_members" class="list-group-item list-group-item-action bg-light">Pending Members</a>
@@ -78,8 +78,8 @@ if ($domain != "") {
         <a href="?domain=<?php print $domain;?>&show=admins" class="list-group-item list-group-item-action bg-light">Admins</a>
         <a href="?domain=<?php print $domain;?>&show=elections" class="list-group-item list-group-item-action bg-light">Elections</a>
         <?php
-}
-?>
+        }
+        ?>
       </div>
     </div>
     <!-- /#sidebar-wrapper -->
@@ -93,13 +93,13 @@ if ($domain != "") {
           <span class="navbar-toggler-icon"></span>
         </button>
         <?php
-if ($use_testnet) {
-    print "<h3 style='color:red; margin-left: 10px; padding-top: 5px;'>TESTNET</h3>";
-}
-if (isset($_SESSION["username"])) {
-    print "<h3 style='margin-left: 10px; padding-top: 5px;'>Logged In: " . $_SESSION["username"] . "</h3>";
-}
-?>
+        if ($use_testnet) {
+            print "<h3 style='color:red; margin-left: 10px; padding-top: 5px;'>TESTNET</h3>";
+        }
+        if (isset($_SESSION["username"])) {
+            print "<h3 style='margin-left: 10px; padding-top: 5px;'>Logged In: " . $_SESSION["username"] . "</h3>";
+        }
+        ?>
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav ml-auto mt-2 mt-lg-0">
             <li class="nav-item">
@@ -110,11 +110,11 @@ if (isset($_SESSION["username"])) {
             </li>
             <li class="nav-item">
               <?php
-$explorer_link = $explorer_url;
-if (isset($_SESSION["username"])) {
-    $explorer_link .= "account/" . $_SESSION["username"];
-}
-?>
+              $explorer_link = $explorer_url;
+              if (isset($_SESSION["username"])) {
+                  $explorer_link .= "account/" . $_SESSION["username"];
+              }
+              ?>
               <a class="nav-link" href="<?php print $explorer_link;?>" target="_blank">Block Explorer</a>
             </li>
             <li class="nav-item">
@@ -126,12 +126,12 @@ if (isset($_SESSION["username"])) {
               </a>
               <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
                 <?php
-if (isset($_SESSION['fio_balance'])) {
-    ?>
+                if (isset($_SESSION['fio_balance'])) {
+                ?>
                 <div class="dropdown-item"><?php print number_format($_SESSION['fio_balance'], 3);?> FIO</div>
                 <?php
-}
-?>
+                }
+                ?>
                 <a class="dropdown-item" href="?action=show_create_group">Create Group</a>
                 <a class="dropdown-item" href="?action=logout">Logout</a>
                 <div class="dropdown-divider"></div>
@@ -147,30 +147,46 @@ if (isset($_SESSION['fio_balance'])) {
       </nav>
 
       <div class="container-fluid">
-          <?php
+<?php
+
+if ($notice != "") {
+    ?>
+      <div class="alert alert-info" role="alert">
+        <?php print $notice;?>
+      </div>
+    <?php
+}
+
 if ($action == "finish_login") {
     print "<h2>Welcome to FIO Groups! Please join or create a group.</h2>";
 }
-
 ?>
           <span id="feedback"></span><br />
           <?php
 
-if ($domain != "") {
+/*
+if (isset($_SESSION['member_status'])) {
+            print "<pre>";
+            var_dump($_SESSION['member_status']);
+            print "</pre>";
+}
+*/
 
+
+if ($domain != "") {
     if ($show == "") {
         ?>
         <h1>Welcome to <?php print $domain;?>!</h1>
         <?php
-$Group->print();
+        $Group->print();
     }
 
     if ($show == "admins") {
         ?>
-              <h2>Admins:</h2>
-              <table class="table table-striped table-bordered">
-              <?php
-$admins = $Group->getAdmins();
+          <h2>Admins:</h2>
+          <table class="table table-striped table-bordered">
+          <?php
+          $admins = $Group->getAdmins();
         if (count($admins)) {
             $admins[0]->print('table_header');
         }
@@ -182,9 +198,9 @@ $admins = $Group->getAdmins();
         $admin_accounts_string = trim($admin_accounts_string, ',');
         $admin_accounts_string .= ']';
         ?>
-              </table>
-              <?php
-$last_certified_election_vote_threshold = 1;
+          </table>
+          <?php
+        $last_certified_election_vote_threshold = 1;
         try {
             $Election                               = $Group->getLastCertifiedElection();
             $last_certified_election_vote_threshold = $Election->vote_threshold;
@@ -195,13 +211,13 @@ $last_certified_election_vote_threshold = 1;
               </div>
 
               <?php
-$admincandidates = $Group->getAdminCandidates();
+        $admincandidates = $Group->getAdminCandidates();
         if (count($admincandidates)) {
             ?>
                 <h2>Admin Candidates:</h2>
                 <table class="table table-striped table-bordered">
                 <?php
-$admincandidates[0]->print('table_header');
+            $admincandidates[0]->print('table_header');
             foreach ($admincandidates as $AdminCandidate) {
                 $controls = array();
                 if ($Group->hasActiveElection()) {
@@ -214,7 +230,7 @@ $admincandidates[0]->print('table_header');
             ?>
                 </table>
                 <?php
-}
+        }
     }
 
     if ($show == "elections") {
@@ -235,7 +251,7 @@ $admincandidates[0]->print('table_header');
             ?>
                 <table class="table table-striped table-bordered">
                 <?php
-$all_elections[0]->print('table_header');
+            $all_elections[0]->print('table_header');
             foreach ($all_elections as $Election) {
                 $Election->print('table');
             }
@@ -245,7 +261,7 @@ $all_elections[0]->print('table_header');
               <h2>Current Election:</h2>
 
                 <?php
-}
+        }
         $show_create_election = false;
         $show_vote_results    = false;
         $election_form_values = array();
@@ -263,7 +279,7 @@ $all_elections[0]->print('table_header');
             ?>
                 <table class="table table-striped table-bordered">
                 <?php
-$Election->print('table_header');
+            $Election->print('table_header');
             $controls = array(
                 'vote_date' => '$vote_date<br /><a href="?show=elections&action=show_votes&domain=$domain" class="btn btn-secondary btn-sm">Show Votes</a>',
             );
@@ -308,7 +324,7 @@ $Election->print('table_header');
                 </form>
 
                 <?php
-if ($show_vote_results || $action == "show_vote_results") {
+              if ($show_vote_results || $action == "show_vote_results") {
                 // TODO: sort by rank desc
                 $VoteResult   = $Factory->new("VoteResult");
                 $criteria     = [["domain", "=", $domain], ["epoch", "=", $Election->epoch]];
@@ -318,14 +334,14 @@ if ($show_vote_results || $action == "show_vote_results") {
                     <h3>Vote Results</h3>
                     <table class="table table-striped table-bordered">
                     <?php
-$vote_results[0]->print('table_header');
+                    $vote_results[0]->print('table_header');
                     foreach ($vote_results as $VoteResult) {
                         $VoteResult->print('table');
                     }
                     ?>
                     </table>
                     <?php
-}
+                }
             }
             if ($action == "show_votes") {
                 $Vote     = $Factory->new("Vote");
@@ -336,7 +352,7 @@ $vote_results[0]->print('table_header');
                     <h3>Votes</h3>
                     <table class="table table-striped table-bordered">
                     <?php
-$votes[0]->print('table_header');
+                    $votes[0]->print('table_header');
                     foreach ($votes as $Vote) {
                         $controls = array();
                         if ($logged_in_user == $Vote->voter_account) {
@@ -347,7 +363,7 @@ $votes[0]->print('table_header');
                     ?>
                     </table>
                     <?php
-}
+                }
             }
 
             // NOTE: this is duplicated above as well.
@@ -357,7 +373,7 @@ $votes[0]->print('table_header');
                     <h2>Admin Candidates:</h2>
                     <table class="table table-striped table-bordered">
                     <?php
-$admincandidates[0]->print('table_header');
+                $admincandidates[0]->print('table_header');
                 foreach ($admincandidates as $AdminCandidate) {
                     $controls = array();
                     if ($Group->hasActiveElection()) {
@@ -370,7 +386,7 @@ $admincandidates[0]->print('table_header');
                 ?>
                     </table>
                     <?php
-}
+            }
 
         } catch (Exception $e) {
             $show_create_election = true;
@@ -387,7 +403,7 @@ $admincandidates[0]->print('table_header');
                     <input type="hidden" name="action" value="create_election">
                     <input type="hidden" name="domain" value="<?php print $domain;?>">
                       <?php
-$Election = $Factory->new("Election");
+                $Election = $Factory->new("Election");
                 print $Election->formHTML($election_form_values);
                 $vote_date = date("Y-m-d", time() + (30 * 24 * 60 * 60));
                 ?>
@@ -402,7 +418,7 @@ $Election = $Factory->new("Election");
                     </div>
                   </form>
                   <?php
-}
+            }
         }
     }
 
@@ -416,7 +432,7 @@ $Election = $Factory->new("Election");
             ?>
                 <table id="inactive_members" class="table table-striped table-bordered">
                 <?php
-$inactive_members[0]->print('table_header');
+            $inactive_members[0]->print('table_header');
             foreach ($inactive_members as $InactiveMember) {
                 $controls = array(
                     'account' => '$account<br /><a href="?show=inactive_members&action=activate_member&domain=$domain&account=$account" class="btn btn-secondary btn-sm">Activate</a>',
@@ -429,7 +445,7 @@ $inactive_members[0]->print('table_header');
             ?>
                 </table>
                 <?php
-} else {
+        } else {
             print "<p>There are currently no inactive members</p>";
         }
 
@@ -445,7 +461,7 @@ $inactive_members[0]->print('table_header');
             ?>
                 <table id="disabled_members" class="table table-striped table-bordered">
                 <?php
-$disabled_members[0]->print('table_header');
+            $disabled_members[0]->print('table_header');
             foreach ($disabled_members as $DisabledMember) {
                 $controls = array();
                 if ($is_admin) {
@@ -458,7 +474,7 @@ $disabled_members[0]->print('table_header');
             ?>
                 </table>
                 <?php
-} else {
+        } else {
             print "<p>There are currently no disabled members</p>";
         }
 
@@ -474,7 +490,7 @@ $disabled_members[0]->print('table_header');
             ?>
                 <table id="members" class="table table-striped table-bordered">
                 <?php
-$members[0]->print('table_header');
+            $members[0]->print('table_header');
             foreach ($members as $Member) {
                 $controls = array(
                     'account'     => '$account',
@@ -496,7 +512,7 @@ $members[0]->print('table_header');
             ?>
                 </table>
                 <?php
-} else {
+        } else {
             print "<p>There are currently no members</p>";
         }
     }
@@ -511,7 +527,7 @@ $members[0]->print('table_header');
             ?>
                 <table id="pending_members" class="table table-striped table-bordered">
                 <?php
-$pendingmembers[0]->print('table_header');
+            $pendingmembers[0]->print('table_header');
             foreach ($pendingmembers as $PendingMember) {
                 // TODO: change this to be a javascript form POST, not a get. Protect against CSRF.
 
@@ -527,7 +543,7 @@ $pendingmembers[0]->print('table_header');
             ?>
                 </table>
                 <?php
-} else {
+        } else {
             print "<p>There are currently no pending members</p>";
         }
 
@@ -571,7 +587,7 @@ $pendingmembers[0]->print('table_header');
                   </div>
                 </form>
                 <?php
-}
+        }
     }
 }
 
@@ -614,7 +630,7 @@ if ($domain == "") {
                         </div>
                     </div>
                     <?php
-$Group = $Factory->new("Group");
+            $Group = $Factory->new("Group");
             print $Group->formHTML();
             ?>
                     <div class="form-group">
@@ -622,7 +638,7 @@ $Group = $Factory->new("Group");
                     </div>
                   </form>
                 <?php
-}
+        }
     }
 
     if ($action == "" || $action == "home") {
@@ -631,7 +647,7 @@ $Group = $Factory->new("Group");
                   <a href="?action=show_create_group" class="btn btn-primary">Create Group</a>
                 </div>
               <?php
-$Group    = $Factory->new("Group");
+        $Group    = $Factory->new("Group");
         $criteria = ['domain', '!=', ''];
         if ($domain != "") {
             $criteria = ['domain', '=', $domain];
@@ -642,7 +658,7 @@ $Group    = $Factory->new("Group");
                 <h1>Groups:</h1>
                 <table id="groups" class="table table-striped table-bordered">
                 <?php
-$groups[0]->print('table_header');
+            $groups[0]->print('table_header');
             foreach ($groups as $Group) {
                 $controls = array(
                     'domain'        => '<a href="?domain=$domain">$domain</a>',
@@ -653,7 +669,7 @@ $groups[0]->print('table_header');
             ?>
                 </table>
                 <?php
-}
+        }
     }
 }
 ?>

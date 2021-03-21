@@ -15,10 +15,23 @@ class Util
     public $domain_fee;
     public $address_fee;
     public $transfer_domain_fee;
+    public $fio_addresses;
 
     public function __construct($client)
     {
         $this->client = $client;
+    }
+
+    public function chainGet($endpoint, $params)
+    {
+        $results = [];
+        try {
+            $response = $this->client->post('/v1/chain/' . $endpoint, [
+                GuzzleHttp\RequestOptions::JSON => $params,
+            ]);
+            $results = json_decode($response->getBody(), true);
+        } catch (Exception $e) {}
+        return $results;
     }
 
     public function getFIOPublicKey()
@@ -30,16 +43,13 @@ class Util
             "account_name" => $this->actor,
         );
         try {
-            $get_account_response = $this->client->post('/v1/chain/get_account', [
-                GuzzleHttp\RequestOptions::JSON => $params,
-            ]);
-            $response = json_decode($get_account_response->getBody());
+            $response = $this->chainGet('get_account', $params);
             //var_dump($response);
-            foreach ($response->permissions as $key => $permission) {
+            foreach ($response['permissions'] as $key => $permission) {
                 //var_dump($permission);
-                if ($permission->perm_name == "active") {
-                    if (isset($permission->required_auth->keys[0])) {
-                        $this->fio_public_key = $permission->required_auth->keys[0]->key;
+                if ($permission['perm_name'] == "active") {
+                    if (isset($permission['required_auth']['keys'][0])) {
+                        $this->fio_public_key = $permission['required_auth']['keys'][0]['key'];
                     }
                 }
             }
@@ -55,15 +65,115 @@ class Util
             return $this->balance;
         }
         $this->getFIOPublicKey();
-        $params                   = ["fio_public_key" => $this->fio_public_key];
-        $get_fio_balance_response = $this->client->post('/v1/chain/get_fio_balance', [
-            GuzzleHttp\RequestOptions::JSON => $params,
-        ]);
-        $fio_balance_results = json_decode($get_fio_balance_response->getBody(), true);
+        $params              = ["fio_public_key" => $this->fio_public_key];
+        $fio_balance_results = $this->chainGet('get_fio_balance', $params);
         $balance             = $fio_balance_results['balance'];
         $balance             = $balance / 1000000000;
         $this->balance       = $balance;
         return $this->balance;
+    }
+
+    public function getFIOAddresses()
+    {
+        if ($this->fio_addresses) {
+            return $this->fio_addresses;
+        }
+        $this->getFIOPublicKey();
+        $params  = ["fio_public_key" => $this->fio_public_key];
+        $results = $this->chainGet('get_fio_names', $params);
+        if (count($results) != 0) {
+            $this->fio_addresses = $results['fio_addresses'];
+        } else {
+            $this->fio_addresses = [];
+        }
+        return $this->fio_addresses;
+    }
+
+    public function getDomainOwner($domain)
+    {
+        $hash      = substr(sha1($domain), 0, 32);
+        $hashArray = array_reverse(str_split($hash, 2));
+        $hashHex   = "0x" . implode($hashArray);
+        $params    = [
+            "code"           => 'fio.address',
+            "scope"          => 'fio.address',
+            "table"          => 'domains',
+            "lower_bound"    => $hashHex,
+            "upper_bound"    => $hashHex,
+            "key_type"       => 'i128',
+            "index_position" => 4,
+            "json"           => true,
+        ];
+        $results = $this->chainGet('get_table_rows', $params);
+        $account = $results['rows'][0]["account"];
+        return $account;
+    }
+
+    public function getAccountPermissions($account)
+    {
+        $params = array(
+            "account_name" => $account,
+        );
+        try {
+            $accounts = array();
+            $response = $this->chainGet('get_account', $params);
+            //var_dump($response);
+            foreach ($response['permissions'] as $key => $permission) {
+                //var_dump($permission);
+                if ($permission['perm_name'] == "active") {
+                    foreach ($permission['required_auth']['accounts'] as $key => $account) {
+                        $accounts[] = $account['permission']['actor'];
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            //print $e->getMessage() . "\n";
+        }
+        return $accounts;
+    }
+
+    public function isMemberOnChain($session, $domain)
+    {
+        $is_member = (isset($session["username"])
+            && isset($session['member_status'])
+            && isset($session['member_status'][$domain])
+            && $session['member_status'][$domain]['owns_member_address']
+        );
+        return $is_member;
+    }
+
+    public function isAdminOnChain($session, $domain)
+    {
+        $is_admin = (isset($session["username"])
+            && isset($session['member_status'])
+            && isset($session['member_status'][$domain])
+            && $session['member_status'][$domain]['owns_member_address']
+            && $session['member_status'][$domain]['is_admin']
+        );
+        return $is_admin;
+    }
+
+    public function getMemberStatusOfDomain($domain, $fio_address = '')
+    {
+        $membership = array(
+            'fio_address'         => $fio_address,
+            'domain'              => $domain,
+            'domain_account'      => '',
+            'is_admin'            => false,
+            'owns_member_address' => false,
+        );
+        $fio_addresses = $this->getFIOAddresses();
+        foreach ($fio_addresses as $key => $on_chain_fio_address) {
+            if ($on_chain_fio_address['fio_address'] == $fio_address && strpos($fio_address, "@" . $domain) !== false) {
+                $membership['owns_member_address'] = true;
+            }
+        }
+        $membership['domain_account'] = $this->getDomainOwner($domain);
+        $accounts                     = $this->getAccountPermissions($membership['domain_account']);
+        if (in_array($this->actor, $accounts)) {
+            $membership['is_admin'] = true;
+        }
+        return $membership;
     }
 
     public function getFee($endpoint, $fio_address)
@@ -74,11 +184,8 @@ class Util
                 "end_point"   => $endpoint,
                 "fio_address" => $fio_address,
             );
-            $response = $this->client->post('/v1/chain/get_fee', [
-                GuzzleHttp\RequestOptions::JSON => $params,
-            ]);
-            $result = json_decode($response->getBody());
-            $fee    = $result->fee;
+            $results = $this->chainGet('get_fee', $params);
+            $fee     = $results['fee'];
         } catch (\Exception $e) {}
         return $fee + ($fee * .1); // add 10% extra in case something changes between now and when it is executed.
     }
@@ -97,12 +204,9 @@ class Util
                 "key_type"       => "name",
                 "limit"          => 1,
             );
-            $response = $this->client->post('/v1/chain/get_table_rows', [
-                GuzzleHttp\RequestOptions::JSON => $params,
-            ]);
-            $result = json_decode($response->getBody());
+            $results = $this->chainGet('get_table_rows', $params);
         } catch (\Exception $e) {}
-        return $result;
+        return $results;
     }
 
     public function getTransferFee()
@@ -1050,7 +1154,10 @@ class Election extends BaseObject
         global $Util; // fix this later
         global $explorer_url; // fix this later
         $results = $Util->getPendingMsig($this->results_proposer, $this->results_proposal_name);
-        if (count($results->rows) > 0 && $results->rows[0]->proposal_name == $this->results_proposal_name) {
+        if ($results
+            && count($results['rows']) > 0
+            && $results['rows'][0]['proposal_name'] == $this->results_proposal_name
+        ) {
             throw new Exception('Please ensure the pending proposal <a href="' . $explorer_url . 'msig/' . $this->results_proposer . '/' . $this->results_proposal_name . '" target="_blank">' . $this->results_proposal_name . '</a> proposed by ' . $this->results_proposer . ' is approved and executed before certifying this elecion.', 1);
         }
 

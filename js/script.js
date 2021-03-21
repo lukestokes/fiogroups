@@ -630,6 +630,13 @@ function getCustomizedUpdateAuthAction(actor, permission, parent, threshold, acc
     }
     auth_accounts[auth_accounts.length] = auth_account;
   }
+  const auth = AnchorLink.Authority.from({
+      "threshold": threshold,
+      "keys": [],
+      "accounts": auth_accounts,
+      "waits": []
+    });
+
   const action = AnchorLink.Action.from({
   "authorization": [
       {
@@ -643,12 +650,7 @@ function getCustomizedUpdateAuthAction(actor, permission, parent, threshold, acc
     "account": actor,
     "permission": permission,
     "parent": parent,
-    "auth": {
-      "threshold": threshold,
-      "keys": [],
-      "accounts": auth_accounts,
-      "waits": []
-    },
+    "auth": auth,
     "max_fee": auth_update_fee
   }
   },abi);
@@ -657,37 +659,9 @@ function getCustomizedUpdateAuthAction(actor, permission, parent, threshold, acc
 
 
 function getUpdateAuthAction(actor, permission, parent, auth_update_fee, abi) {
-  const action = AnchorLink.Action.from({
-  "authorization": [
-      {
-          "actor": actor,
-          "permission": 'owner',
-      },
-  ],
-  "account": 'eosio',
-  "name": 'updateauth',
-  "data": {
-    "account": actor,
-    "permission": permission,
-    "parent": parent,
-    "auth": {
-      "threshold": 1,
-      "keys": [],
-      "accounts": [
-        {
-          "permission": {
-            "actor": session.auth.actor,
-            "permission": "active"
-          },
-          "weight": 1
-        }
-      ],
-      "waits": []
-    },
-    "max_fee": auth_update_fee
-  }
-  },abi);
-  return action;
+  threshold = 1
+  accounts = [session.auth.actor];
+  return getCustomizedUpdateAuthAction(actor, permission, parent, threshold, accounts, auth_update_fee, abi);
 }
 
 async function createKeyPair() {
