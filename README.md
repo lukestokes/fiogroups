@@ -6,6 +6,8 @@ For more details on this idea, see: https://fioprotocol.atlassian.net/wiki/space
 
 You can view the prototype running here: https://fiogroups.lukestokes.info/
 
+You can view a slide deck presentation about FIO Groups here: http://bit.ly/fiogroups-deck
+
 The basic flow:
 
 * User logs in with Anchor Wallet.

@@ -292,8 +292,10 @@ async function applyToGroup(
   header = info.getTransactionHeader()
 
   const expiration_days_in_seconds = (60 * 60 * 24 * 7) // seconds, minutes, hours, days
+  const now_in_seconds = Math.floor(Date.now()/1000);
+  const new_expiration_timestamp = (expiration_days_in_seconds + now_in_seconds);
 
-  header.expiration = new AnchorLink.TimePointSec(AnchorLink.UInt32.from(header.expiration.value.value + expiration_days_in_seconds));
+  header.expiration = new AnchorLink.TimePointSec(AnchorLink.UInt32.from(new_expiration_timestamp));
 
   const transaction = AnchorLink.Transaction.from({
       ...header,
